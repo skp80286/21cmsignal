@@ -37,10 +37,10 @@ def create_model(optimizer='adam', hidden_layer_dim = 20, activation = "sigmoid"
 	model = Sequential()
 
 	# First hidden layer 
-	model.add(Dense(320, input_shape=(10,), activation="tanh"))
+	model.add(Dense(160, input_shape=(10,), activation="tanh"))
 
 	# Second hidden layer 
-	model.add(Dense(160, activation='linear'))
+	model.add(Dense(80, activation='linear'))
 
 	# third hidden layer 
 	model.add(Dense(40, activation='linear'))
