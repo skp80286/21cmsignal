@@ -6,7 +6,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -37,10 +37,13 @@ def create_model(optimizer='adam', hidden_layer_dim = 20, activation = "sigmoid"
 	model = Sequential()
 
 	# First hidden layer 
-	model.add(Dense(hidden_layer_dim, input_shape=(10,), activation=activation))
+	model.add(Dense(320, input_shape=(10,), activation="tanh"))
 
 	# Second hidden layer 
-	#model.add(Dense(hidden_layer_dim, activation='sigmoid'))
+	model.add(Dense(160, activation='linear'))
+
+	# third hidden layer 
+	model.add(Dense(40, activation='linear'))
 
 	# Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
 	model.add(Dense(2, activation='linear'))
@@ -64,7 +67,7 @@ def grid_search(X, y):
 		"optimizer": ['SGD', 'Adam'],
 		"optimizer__learning_rate": [0.2],
 	}
-	grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=10)
+	grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3)
 	grid_result = grid.fit(X, y)
 	# summarize results
 	print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
@@ -84,7 +87,9 @@ def run(X, y):
 	y_pred = model.predict(X_test)
 
 	# Calculate R² scores
-	r2_scores = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
+	r2_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
+
+	print("RMS Error: " + str(r2_scores))
 
 	# Plot R² scores
 	plt.bar(['zeta', 'mmin'], r2_scores)
@@ -105,6 +110,6 @@ def run(X, y):
 X, y = load_dataset("../21cm_simulation/output/ps-20240821225155")
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-#run(X,y)
-grid_search(X_train, y_train)
+run(X,y)
+#grid_search(X_train, y_train)
 
