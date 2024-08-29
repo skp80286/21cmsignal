@@ -2,3 +2,6 @@
 reionizationparams_extraction/.ipynb_checkpoints/reionizationparams_extraction-checkpoint.py
 /21cm_simulation/_cache
 21cm_simulation/output/ps-2024*
+/21cm_simulation/output
+21cm_simulation/.DS_Store
+.DS_Store
