@@ -5,3 +5,9 @@ reionizationparams_extraction/.ipynb_checkpoints/reionizationparams_extraction-c
 /21cm_simulation/output
 21cm_simulation/.DS_Store
 .DS_Store
+/21cm_simulation/__pycache__
+21cm_simulation/data/brightness_temp_6.dat
+ps-c/data/brightness_temp_14.dat
+ps-c/output/ps_6.dat
+ps-c/ps_gk.o
+ps-c/ps_gk
