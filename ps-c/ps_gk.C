@@ -209,7 +209,7 @@ void myps(int nbox, float *grid, float box_size, char *filename) {
 
 	fp = fopen(filename, "w"); 
 	for (i = 0; i < nhalf; i++) 
-		fprintf(fp, "%f  %e  %e  %lld\n", w[i], powspec[i], deltasqk[i], iweights[i]); 
+		fprintf(fp, "%f %f\n", deltasqk[i], w[i]); 
 	fclose(fp);
 
 	free(iweights); 
