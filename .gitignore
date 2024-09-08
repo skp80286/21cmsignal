@@ -11,3 +11,4 @@ ps-c/data/brightness_temp_14.dat
 ps-c/output/ps_6.dat
 ps-c/ps_gk.o
 ps-c/ps_gk
+21cm_simulation/cursor_test.py

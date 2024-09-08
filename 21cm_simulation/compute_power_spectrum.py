@@ -6,14 +6,14 @@ class ComputePowerSpectrum:
         # Total number of points in the grid (cubic)
         N = nbox * nbox * nbox 
 
-        print(f"ps: N={N}")
-        print(f"ps: nbox={nbox}")
-        print(f"ps: box_size={box_size}")
+        #print(f"ps: N={N}")
+        #print(f"ps: nbox={nbox}")
+        #print(f"ps: box_size={box_size}")
 
         kf = 2 * np.pi / box_size  # h/Mpc smallest 'k'
         kn = np.pi * nbox / box_size  # h/Mpc; Nyquist wavenumber or largest 'k'
         coeff = (box_size / (2.0 * np.pi)) ** 2  # Mpc/h FT coefficient
-        print(f"ps: kf={kf}, kn={kn}")
+        #print(f"ps: kf={kf}, kn={kn}")
 
         # Generate wavenumbers. This is similar to fftfreq, but with 
         # slight difference in convention 
@@ -23,7 +23,7 @@ class ComputePowerSpectrum:
             iw = i - nbox if i > nhalf else i
             w[i] = kf * iw
 
-        print(f"ps: w={w}")
+        #print(f"ps: w={w}")
 
         #print(f"myps: grid={grid}")
         # Do the FFT transform with forward normalization and multiply by N to match FFTW convention
@@ -69,7 +69,7 @@ class ComputePowerSpectrum:
                     iweights[int(m)] += 1
                     if (int(m) > max_ind):
                         max_ind = int(m)
-        print(f"ps: iweights max_ind={max_ind}")
+        #print(f"ps: iweights max_ind={max_ind}")
 
         # ----------------------
         # Calculate the DeltaSquaredK power spectrum
