@@ -32,18 +32,21 @@ def load_dataset(filename):
 	print("--- read %d lines ---" % lines)
 	return (np.array(X), np.array( y))
 
-def create_model(optimizer='adam', hidden_layer_dim = 20, activation = "sigmoid"):
+def create_model(optimizer='adam', hidden_layer_dim = 256, activation = "sigmoid", activation2 = "leaky_relu"):
 	# Create a neural network model
 	model = Sequential()
 
+	dim = hidden_layer_dim
 	# First hidden layer 
-	model.add(Dense(160, input_shape=(10,), activation="tanh"))
+	model.add(Dense(dim, input_shape=(20,), activation=activation))
 
+	dim = dim//2
 	# Second hidden layer 
-	model.add(Dense(80, activation='linear'))
+	model.add(Dense(dim, activation=activation2))
 
+	dim = dim//2
 	# third hidden layer 
-	model.add(Dense(40, activation='linear'))
+	model.add(Dense(dim, activation=activation2))
 
 	# Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
 	model.add(Dense(2, activation='linear'))
@@ -60,12 +63,13 @@ def create_model(optimizer='adam', hidden_layer_dim = 20, activation = "sigmoid"
 def grid_search(X, y):
 	model = KerasRegressor(model=create_model)
 	param_grid = {
-		"epochs": [80], "batch_size":[20], 
-		"model__hidden_layer_dim": [20, 40, 180],
-		"model__activation": ['softmax', 'softplus', 'softsign', 'relu', 'tanh', 'sigmoid', 'hard_sigmoid', 'linear'],
+		"epochs": [64, 132], "batch_size":[8, 16], 
+		"model__hidden_layer_dim": [256, 512],
+		"model__activation": ['sigmoid', 'tanh'],
+		"model__activation2": ['leaky_relu', 'linear'],
 		"loss": ["mean_squared_error"],
-		"optimizer": ['SGD', 'Adam'],
-		"optimizer__learning_rate": [0.2],
+		"optimizer": ['Adam'],
+		"optimizer__learning_rate": [0.5, 0.2, 1.0],
 	}
 	grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3)
 	grid_result = grid.fit(X, y)
@@ -81,33 +85,43 @@ def run(X, y):
 
 	model = create_model()
 	# Train the model
-	model.fit(X_train, y_train, epochs=80, batch_size=20)
+	model.fit(X_train, y_train, epochs=128, batch_size=8)
 
 	# Test the model
 	y_pred = model.predict(X_test)
 
-	# Calculate R² scores
-	r2_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
+	# Calculate rmse scores
+	rms_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
+	rms_scores_percent = rms_scores * 100 / np.mean(y_test, axis=0)
+	print("RMS Error: " + str(rms_scores_percent))
 
-	print("RMS Error: " + str(r2_scores))
-
-	# Plot R² scores
-	plt.bar(['zeta', 'mmin'], r2_scores)
-	plt.ylim(0, 1)
-	plt.title('R² Scores for Predictions')
-	plt.ylabel('R² Score')
+	# Plot RMS scores
+	plt.bar(['zeta', 'mmin'], rms_scores_percent)
+	plt.ylim(0, 10)
+	plt.title('% RMS Error for Predictions')
+	plt.ylabel('% RMS Error (RMSE*100/mean)')
+	for i, v in enumerate(rms_scores_percent):
+		plt.text(i, v, "{:.2f}%".format(v), ha='center', va='bottom')
+	plt.show()
 	plt.show()
 
 
-	plt.scatter(y_test[:, 0], y_pred[:, 0])
+	plt.scatter(y_pred[:, 0], y_test[:, 0])
+	plt.title('Predictions vs True Values for Zeta')
+	plt.ylabel('Prediction')
+	plt.xlabel('True Value')
 	plt.show()
-	plt.scatter(y_test[:, 1], y_pred[:, 1])
+	plt.scatter(y_pred[:, 1], y_test[:, 1])
+	plt.title('Predictions vs True Values for M_min')
+	plt.ylabel('Prediction')
+	plt.xlabel('True Value')
 	plt.show()
 
 
 
 
-X, y = load_dataset("../21cm_simulation/output/ps-20240821225155")
+#X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
+X, y = load_dataset("../21cm_simulation/output/ps-20240908194837.pkl")
 # Split the data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 run(X,y)
