@@ -16,7 +16,7 @@ from keras.optimizers import Adagrad
 from keras.optimizers import Adadelta
 from keras.optimizers import RMSprop
 from keras.regularizers import l1_l2, l1
-
+from keras.losses import huber
 from scikeras.wrappers import KerasRegressor
 from sklearn import preprocessing
 
@@ -30,31 +30,37 @@ def load_dataset(filename):
 		while 1:
 			try:
 				e = pickle.load(f)
+				# 20 is a scaling factor to normalize M_min to similar level
+				# as Zeta. This is to avoid the skewing of model to optimizing 
+				# one of the outputs at the expense of the other
 				params = [float(e['zeta']), float(e['m_min'])]
 				y.append(params)
 				ps = [float(x) for x in e['ps']]
 				X.append(ps) 
-				#print(f'params={params}, ps={ps}')
+				if lines < 10: print(f'params={params}, ps={ps}')
 				lines = lines + 1
 			except EOFError:
 				break
 	print("--- read %d lines ---" % lines)
-	#X = preprocessing.normalize(X)
 	X, y = (np.array(X), np.array(y))
 	# Data validation and cleaning
 	valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
 	X = X[valid_indices]
 	y = y[valid_indices]
-	return (X, y)
+	y[:,1] *= 20
+
+	# Split the dataset and normalize
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+	return (X_train, X_test, y_train, y_test)
 
 def my_loss_fn(y_true, y_pred):
-	SS_res = tf.reduce_sum(tf.square(y_true - y_pred))
-	SS_tot = tf.reduce_sum(tf.square(y_true - tf.reduce_mean(y_true)))
-	r2_inv = SS_res / (SS_tot + tf.constant(1e-7, dtype=tf.float32))
+	SS_res = tf.square(y_true - y_pred)
+	SS_tot = tf.square(y_true - tf.reduce_mean(y_true))
+	r2_inv = tf.reduce_sum(SS_res / (SS_tot + tf.constant(1e-7, dtype=tf.float32)))
 	return r2_inv
 
 
-def create_model(optimizer='Adam', learning_rate = 0.0001, hidden_layer_dim = 8, 
+def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 16, 
 				 activation = "tanh", activation2 = "leaky_relu"):
 	# Create a neural network model
 	model = Sequential()
@@ -69,6 +75,14 @@ def create_model(optimizer='Adam', learning_rate = 0.0001, hidden_layer_dim = 8,
 
 	dim = dim//2
 	# third hidden layer 
+	model.add(Dense(dim, activation=activation2))
+
+	dim = dim//2
+	# fourth hidden layer 
+	model.add(Dense(dim, activation=activation2))
+
+	dim = dim//2
+	# fifth hidden layer 
 	model.add(Dense(dim, activation=activation2))
 
 
@@ -89,7 +103,7 @@ def create_model(optimizer='Adam', learning_rate = 0.0001, hidden_layer_dim = 8,
 		opt = Adam(learning_rate=learning_rate)
 
 	# Compile the model  
-	model.compile(loss=my_loss_fn, optimizer=opt, metrics=['accuracy'])
+	model.compile(loss=huber, optimizer=opt, metrics=['accuracy'])
 
 	# Summary of the model
 	model.summary()
@@ -118,10 +132,10 @@ def grid_search(X, y):
 	for mean, stdev, param in zip(means, stds, params):
 		print("%f (%f) with: %r" % (mean, stdev, param))
 
-def run(X, y):
+def run(X_train, X_test, y_train, y_test):
 
 	# Split the data into training and testing sets
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+	#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 
 	# Define a list to store training loss and validation loss
@@ -129,17 +143,28 @@ def run(X, y):
 	validation_loss = []
 	test_loss = []
 	r2_scores = []
-	sample_sizes = [50, 100, 150, 200, 250]  # Increasing sample sizes
+	sample_sizes = [4000, 6000, 8000]  # Increasing sample sizes
 	y_pred = None
+	history = None
 
+	optimizer='Adagrad'
+	learning_rate = 0.0001
+	hidden_layer_dim = 2048
+	activation = "tanh"
+	activation2 = "linear"
+	
 	# Train model with different sample sizes
 	for size in sample_sizes:
 		print (f'## Sample size: {size}')
 		X_train_subset = X_train[:size]
 		y_train_subset = y_train[:size]
 
-		model = create_model()
-		history = model.fit(X_train_subset, y_train_subset, epochs=50, batch_size=5, shuffle=True)
+		model = create_model(
+			optimizer=optimizer, learning_rate = learning_rate, 
+			hidden_layer_dim = hidden_layer_dim, 
+			activation = activation, activation2 = activation2
+			)
+		history = model.fit(X_train_subset, y_train_subset, epochs=80, batch_size=10, shuffle=True)
 			
 		training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
 		#validation_loss.append(history.history['val_loss'][-1])  
@@ -149,7 +174,7 @@ def run(X, y):
 		# Calculate R2 scores
 		r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
 		print("R2 Score: " + str(r2))
-		r2_scores.append((r2[0]+r2[1])) # arbitrary scaling
+		r2_scores.append((r2[0]+r2[1]))
 		# Calculate rmse scores
 		rms_scores = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)]
 		rms_scores_percent = np.sqrt(rms_scores) * 100 / np.mean(y_test, axis=0)
@@ -160,22 +185,23 @@ def run(X, y):
 	plt.plot(sample_sizes, training_loss, label='Training Loss')
 	#plt.plot(sample_sizes, validation_loss, label='Validation Loss')
 	plt.plot(sample_sizes, test_loss, label='Test Loss')
-	#plt.plot(sample_sizes, r2_scores, label='R2 Score')
+	plt.plot(sample_sizes, r2_scores, label='R2 Score')
 	plt.xlabel('Number of Samples')
 	plt.ylabel('Loss')
+	plt.title(f'opt={optimizer},lr={learning_rate},hl_dim={hidden_layer_dim},activ={activation},activ2={activation2}')
 	plt.legend()
 	plt.show()
 
 	## Train the model
 	#history = model.fit(X_train, y_train, epochs=512, batch_size=11)
 	## Plot the training and validation loss
-	#plt.plot(history.history['loss'])
+	plt.plot(history.history['loss'])
 	##plt.plot(history.history['val_loss'])
-	#plt.title('Model loss')
-	#plt.ylabel('Loss')
-	#plt.xlabel('Epoch')
-	##plt.legend(['Train', 'Validation'], loc='upper right')
-	#plt.show()
+	plt.title('Model loss')
+	plt.ylabel('Loss')
+	plt.xlabel('Epoch')
+	#plt.legend(['Train', 'Validation'], loc='upper right')
+	plt.show()
 
 	## Test the model
 	#y_pred = model.predict(X_test)
@@ -211,7 +237,7 @@ def run(X, y):
 	plt.show()
 
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X, y = load_dataset("../21cm_simulation/output/ps-20240918214055.pkl")
-run(X,y)
+X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-20240918214055.pkl")
+run(X_train, X_test, y_train, y_test)
 #grid_search(X, y)
 
