@@ -67,7 +67,7 @@ def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 
 
 	dim = hidden_layer_dim
 	# First hidden layer 
-	model.add(Dense(dim, input_shape=(20,), activation=activation))
+	model.add(Dense(dim, input_shape=(40,), activation=activation))
 
 	dim = dim//2
 	# Second hidden layer 
@@ -79,10 +79,6 @@ def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 
 
 	dim = dim//2
 	# fourth hidden layer 
-	model.add(Dense(dim, activation=activation2))
-
-	dim = dim//2
-	# fifth hidden layer 
 	model.add(Dense(dim, activation=activation2))
 
 
@@ -143,13 +139,13 @@ def run(X_train, X_test, y_train, y_test):
 	validation_loss = []
 	test_loss = []
 	r2_scores = []
-	sample_sizes = [4000, 6000, 8000]  # Increasing sample sizes
+	sample_sizes = [500, 1000, 1500, 2000]  # Increasing sample sizes
 	y_pred = None
 	history = None
 
 	optimizer='Adagrad'
 	learning_rate = 0.0001
-	hidden_layer_dim = 2048
+	hidden_layer_dim = 512
 	activation = "tanh"
 	activation2 = "linear"
 	
@@ -237,7 +233,7 @@ def run(X_train, X_test, y_train, y_test):
 	plt.show()
 
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-20240918214055.pkl")
+X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-20240919170730.pkl")
 run(X_train, X_test, y_train, y_test)
 #grid_search(X, y)
 
