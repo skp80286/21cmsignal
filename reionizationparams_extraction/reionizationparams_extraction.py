@@ -13,8 +13,14 @@ from keras.layers import Dense
 from keras.optimizers import SGD
 from keras.optimizers import Adam
 from keras.optimizers import Adagrad
+from keras.optimizers import Adadelta
+from keras.optimizers import RMSprop
+from keras.regularizers import l1_l2, l1
 
 from scikeras.wrappers import KerasRegressor
+from sklearn import preprocessing
+
+import tensorflow as tf
 
 def load_dataset(filename):
 	X = []
@@ -24,15 +30,32 @@ def load_dataset(filename):
 		while 1:
 			try:
 				e = pickle.load(f)
-				y.append([e['zeta'], e['m_min']])
-				X.append( e['ps']) 
+				params = [float(e['zeta']), float(e['m_min'])]
+				y.append(params)
+				ps = [float(x) for x in e['ps']]
+				X.append(ps) 
+				#print(f'params={params}, ps={ps}')
 				lines = lines + 1
 			except EOFError:
 				break
 	print("--- read %d lines ---" % lines)
-	return (np.array(X), np.array( y))
+	#X = preprocessing.normalize(X)
+	X, y = (np.array(X), np.array(y))
+	# Data validation and cleaning
+	valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
+	X = X[valid_indices]
+	y = y[valid_indices]
+	return (X, y)
 
-def create_model(optimizer='adam', hidden_layer_dim = 256, activation = "sigmoid", activation2 = "leaky_relu"):
+def my_loss_fn(y_true, y_pred):
+	SS_res = tf.reduce_sum(tf.square(y_true - y_pred))
+	SS_tot = tf.reduce_sum(tf.square(y_true - tf.reduce_mean(y_true)))
+	r2_inv = SS_res / (SS_tot + tf.constant(1e-7, dtype=tf.float32))
+	return r2_inv
+
+
+def create_model(optimizer='Adam', learning_rate = 0.0001, hidden_layer_dim = 8, 
+				 activation = "tanh", activation2 = "leaky_relu"):
 	# Create a neural network model
 	model = Sequential()
 
@@ -48,11 +71,25 @@ def create_model(optimizer='adam', hidden_layer_dim = 256, activation = "sigmoid
 	# third hidden layer 
 	model.add(Dense(dim, activation=activation2))
 
+
 	# Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
 	model.add(Dense(2, activation='linear'))
 
+	# setup optimizer
+	opt = None
+	if optimizer=="SGD":
+		opt = SGD(learning_rate=learning_rate)
+	if optimizer=="Adagrad":
+		opt = Adagrad(learning_rate=learning_rate)
+	if optimizer=="Adadelta":
+		opt = Adadelta(learning_rate=learning_rate)
+	if optimizer=="RMSprop":
+		opt = RMSprop(learning_rate=learning_rate)
+	else: #optimizer=="Adam":
+		opt = Adam(learning_rate=learning_rate)
+
 	# Compile the model  
-	model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['accuracy'])
+	model.compile(loss=my_loss_fn, optimizer=opt, metrics=['accuracy'])
 
 	# Summary of the model
 	model.summary()
@@ -63,13 +100,13 @@ def create_model(optimizer='adam', hidden_layer_dim = 256, activation = "sigmoid
 def grid_search(X, y):
 	model = KerasRegressor(model=create_model)
 	param_grid = {
-		"epochs": [64, 132], "batch_size":[8, 16], 
-		"model__hidden_layer_dim": [256, 512],
-		"model__activation": ['sigmoid', 'tanh'],
+		"epochs": [64], "batch_size":[8], 
+		"model__hidden_layer_dim": [1024, 2048],
+		"model__activation": ['tanh','sigmoid'],
 		"model__activation2": ['leaky_relu', 'linear'],
-		"loss": ["mean_squared_error"],
+		"loss": ['mean_squared_error'],
 		"optimizer": ['Adam'],
-		"optimizer__learning_rate": [0.5, 0.2, 1.0],
+		"model__learning_rate": [0.0001],
 	}
 	grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3)
 	grid_result = grid.fit(X, y)
@@ -83,47 +120,98 @@ def grid_search(X, y):
 
 def run(X, y):
 
-	model = create_model()
-	# Train the model
-	model.fit(X_train, y_train, epochs=128, batch_size=8)
+	# Split the data into training and testing sets
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-	# Test the model
-	y_pred = model.predict(X_test)
 
-	# Calculate rmse scores
-	rms_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
-	rms_scores_percent = rms_scores * 100 / np.mean(y_test, axis=0)
-	print("RMS Error: " + str(rms_scores_percent))
+	# Define a list to store training loss and validation loss
+	training_loss = []
+	validation_loss = []
+	test_loss = []
+	r2_scores = []
+	sample_sizes = [50, 100, 150, 200, 250]  # Increasing sample sizes
+	y_pred = None
+
+	# Train model with different sample sizes
+	for size in sample_sizes:
+		print (f'## Sample size: {size}')
+		X_train_subset = X_train[:size]
+		y_train_subset = y_train[:size]
+
+		model = create_model()
+		history = model.fit(X_train_subset, y_train_subset, epochs=50, batch_size=5, shuffle=True)
+			
+		training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
+		#validation_loss.append(history.history['val_loss'][-1])  
+		# Test the model
+		y_pred = model.predict(X_test)
+
+		# Calculate R2 scores
+		r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
+		print("R2 Score: " + str(r2))
+		r2_scores.append((r2[0]+r2[1])) # arbitrary scaling
+		# Calculate rmse scores
+		rms_scores = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)]
+		rms_scores_percent = np.sqrt(rms_scores) * 100 / np.mean(y_test, axis=0)
+		print("RMS Error: " + str(rms_scores_percent))
+		test_loss.append(rms_scores[0]+rms_scores[1])
+
+	# Plot the results
+	plt.plot(sample_sizes, training_loss, label='Training Loss')
+	#plt.plot(sample_sizes, validation_loss, label='Validation Loss')
+	plt.plot(sample_sizes, test_loss, label='Test Loss')
+	#plt.plot(sample_sizes, r2_scores, label='R2 Score')
+	plt.xlabel('Number of Samples')
+	plt.ylabel('Loss')
+	plt.legend()
+	plt.show()
+
+	## Train the model
+	#history = model.fit(X_train, y_train, epochs=512, batch_size=11)
+	## Plot the training and validation loss
+	#plt.plot(history.history['loss'])
+	##plt.plot(history.history['val_loss'])
+	#plt.title('Model loss')
+	#plt.ylabel('Loss')
+	#plt.xlabel('Epoch')
+	##plt.legend(['Train', 'Validation'], loc='upper right')
+	#plt.show()
+
+	## Test the model
+	#y_pred = model.predict(X_test)
+
+	## Calculate R2 scores
+	#r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
+	#print("R2 Score: " + str(r2))
+
+	## Calculate rmse scores
+	#rms_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
+	#rms_scores_percent = rms_scores * 100 / np.mean(y_test, axis=0)
+	#print("RMS Error: " + str(rms_scores_percent))
 
 	# Plot RMS scores
-	plt.bar(['zeta', 'mmin'], rms_scores_percent)
-	plt.ylim(0, 10)
-	plt.title('% RMS Error for Predictions')
-	plt.ylabel('% RMS Error (RMSE*100/mean)')
-	for i, v in enumerate(rms_scores_percent):
-		plt.text(i, v, "{:.2f}%".format(v), ha='center', va='bottom')
-	plt.show()
-	plt.show()
+	#plt.bar(['zeta', 'mmin'], rms_scores_percent)
+	#plt.ylim(0, 10)
+	#plt.title('% RMS Error for Predictions')
+	#plt.ylabel('% RMS Error (RMSE*100/mean)')
+	#for i, v in enumerate(rms_scores_percent):
+	#	plt.text(i, v, "{:.2f}%".format(v), ha='center', va='bottom')
+	#plt.show()
 
 
-	plt.scatter(y_pred[:, 0], y_test[:, 0])
+	plt.scatter(y_test[:, 0], y_pred[:, 0])
 	plt.title('Predictions vs True Values for Zeta')
 	plt.ylabel('Prediction')
 	plt.xlabel('True Value')
 	plt.show()
-	plt.scatter(y_pred[:, 1], y_test[:, 1])
+	plt.scatter(y_test[:, 1], y_pred[:, 1])
 	plt.title('Predictions vs True Values for M_min')
 	plt.ylabel('Prediction')
 	plt.xlabel('True Value')
 	plt.show()
 
-
-
-
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X, y = load_dataset("../21cm_simulation/output/ps-20240908194837.pkl")
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X, y = load_dataset("../21cm_simulation/output/ps-20240918214055.pkl")
 run(X,y)
-#grid_search(X_train, y_train)
+#grid_search(X, y)
 
