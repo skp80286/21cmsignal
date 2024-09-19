@@ -55,7 +55,7 @@ print("Cache cleared")
 #               "POWER_SPECTRUM": 5} # POWER_SPECTRUM: CLASS
 #flag_options = { "USE_MINI_HALOS": True, "M_MIN_in_Mass": True, "USE_MASS_DEPENDENT_ZETA": True, 
 #                "INHOMO_RECO": True, "US_TS_FLUCT": True}
-user_params = { "HII_DIM": 20, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": 6, "USE_FFTW_WISDOM": True}
+user_params = { "HII_DIM": 40, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": 6, "USE_FFTW_WISDOM": True}
 flag_options = { }
 
 # File for storing Brightness Temperature maps
@@ -83,7 +83,7 @@ m_min_high = m_min_base+math.log10(10) # multiply by 10
 #m_min_high = math.log10(1.19e+11) 
 
 z = 9.1
-nsets = 10000 # number of powerspectra datasets to generate
+nsets = 2000 # number of powerspectra datasets to generate
 
 k_len = -1
 
