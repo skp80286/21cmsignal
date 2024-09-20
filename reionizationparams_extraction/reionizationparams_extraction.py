@@ -30,10 +30,11 @@ def load_dataset(filename):
 		while 1:
 			try:
 				e = pickle.load(f)
-				# 20 is a scaling factor to normalize M_min to similar level
+				# We scale the M_min to bring it to similar level
 				# as Zeta. This is to avoid the skewing of model to optimizing 
 				# one of the outputs at the expense of the other
 				params = [float(e['zeta']), float(e['m_min'])]
+				#params = [float(e['zeta']), float(e['m_min'])*90-320]
 				y.append(params)
 				ps = [float(x) for x in e['ps']]
 				X.append(ps) 
@@ -47,10 +48,9 @@ def load_dataset(filename):
 	valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
 	X = X[valid_indices]
 	y = y[valid_indices]
-	y[:,1] *= 20
 
 	# Split the dataset and normalize
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 	return (X_train, X_test, y_train, y_test)
 
 def my_loss_fn(y_true, y_pred):
@@ -67,7 +67,7 @@ def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 
 
 	dim = hidden_layer_dim
 	# First hidden layer 
-	model.add(Dense(dim, input_shape=(40,), activation=activation))
+	model.add(Dense(dim, input_shape=(80,), activation=activation))
 
 	dim = dim//2
 	# Second hidden layer 
@@ -81,6 +81,9 @@ def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 
 	# fourth hidden layer 
 	model.add(Dense(dim, activation=activation2))
 
+	dim = dim//2
+	# fifth hidden layer 
+	model.add(Dense(dim, activation=activation2))
 
 	# Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
 	model.add(Dense(2, activation='linear'))
@@ -139,13 +142,13 @@ def run(X_train, X_test, y_train, y_test):
 	validation_loss = []
 	test_loss = []
 	r2_scores = []
-	sample_sizes = [500, 1000, 1500, 2000]  # Increasing sample sizes
+	sample_sizes = [len(X_train)]  # Increasing sample sizes
 	y_pred = None
 	history = None
 
 	optimizer='Adagrad'
 	learning_rate = 0.0001
-	hidden_layer_dim = 512
+	hidden_layer_dim = 3076
 	activation = "tanh"
 	activation2 = "linear"
 	
@@ -160,7 +163,7 @@ def run(X_train, X_test, y_train, y_test):
 			hidden_layer_dim = hidden_layer_dim, 
 			activation = activation, activation2 = activation2
 			)
-		history = model.fit(X_train_subset, y_train_subset, epochs=80, batch_size=10, shuffle=True)
+		history = model.fit(X_train_subset, y_train_subset, epochs=160, batch_size=6, shuffle=True)
 			
 		training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
 		#validation_loss.append(history.history['val_loss'][-1])  
@@ -233,7 +236,7 @@ def run(X_train, X_test, y_train, y_test):
 	plt.show()
 
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-20240919170730.pkl")
+X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 run(X_train, X_test, y_train, y_test)
 #grid_search(X, y)
 
