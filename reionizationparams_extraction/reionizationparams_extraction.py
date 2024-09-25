@@ -22,6 +22,9 @@ from sklearn import preprocessing
 
 import tensorflow as tf
 
+from datetime import datetime
+import time
+
 def load_dataset(filename):
 	X = []
 	y = []
@@ -33,13 +36,14 @@ def load_dataset(filename):
 				# We scale the M_min to bring it to similar level
 				# as Zeta. This is to avoid the skewing of model to optimizing 
 				# one of the outputs at the expense of the other
-				params = [float(e['zeta']), float(e['m_min'])]
 				#params = [float(e['zeta']), float(e['m_min'])*90-320]
-				y.append(params)
-				ps = [float(x) for x in e['ps']]
-				X.append(ps) 
-				if lines < 10: print(f'params={params}, ps={ps}')
-				lines = lines + 1
+				params = [float(e['zeta']), float(e['m_min'])]
+				if(params[1] > 4.25 and params[0] > 25 and params[0] < 150):
+					y.append(params)
+					ps = [float(x) for x in e['ps']]
+					X.append(ps) 
+					if lines < 10: print(f'params={params}, ps={ps}')
+					lines = lines + 1
 			except EOFError:
 				break
 	print("--- read %d lines ---" % lines)
@@ -131,6 +135,20 @@ def grid_search(X, y):
 	for mean, stdev, param in zip(means, stds, params):
 		print("%f (%f) with: %r" % (mean, stdev, param))
 
+def save_model(model):
+	# Save the architecture
+	# File for storing model architecture
+	arch_filename = datetime.now().strftime("output/nn-arch-%Y%m%d%H%M%S.json")
+	print(f'Saving model architecture to: {arch_filename}')
+	weights_filename = datetime.now().strftime("output/nn-weights-%Y%m%d%H%M%S.weights.h5")
+	print(f'Saving model weights to: {weights_filename}')
+
+	model_json = model.to_json()
+	with open(arch_filename, 'w') as json_file:
+		json_file.write(model_json)
+	# Save the weights
+	model.save_weights(weights_filename)
+
 def run(X_train, X_test, y_train, y_test):
 
 	# Split the data into training and testing sets
@@ -145,10 +163,13 @@ def run(X_train, X_test, y_train, y_test):
 	sample_sizes = [len(X_train)]  # Increasing sample sizes
 	y_pred = None
 	history = None
+	rms_scores = None
+	y_train_subset = None
+	errors = None
 
 	optimizer='Adagrad'
 	learning_rate = 0.0001
-	hidden_layer_dim = 3076
+	hidden_layer_dim = 1024
 	activation = "tanh"
 	activation2 = "linear"
 	
@@ -163,12 +184,14 @@ def run(X_train, X_test, y_train, y_test):
 			hidden_layer_dim = hidden_layer_dim, 
 			activation = activation, activation2 = activation2
 			)
-		history = model.fit(X_train_subset, y_train_subset, epochs=160, batch_size=6, shuffle=True)
+		history = model.fit(X_train_subset, y_train_subset, epochs=80, batch_size=6, shuffle=True)
 			
 		training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
 		#validation_loss.append(history.history['val_loss'][-1])  
 		# Test the model
 		y_pred = model.predict(X_test)
+
+		errors = (y_pred - y_test)**2/y_test**2
 
 		# Calculate R2 scores
 		r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
@@ -181,6 +204,36 @@ def run(X_train, X_test, y_train, y_test):
 		test_loss.append(rms_scores[0]+rms_scores[1])
 
 	# Plot the results
+	#print(errors[:,0].shape)
+	#print(errors[:,1].shape)
+	#print(y_test[:,0].shape)
+	#print(y_test[:,1].shape)
+	#print(errors)
+	plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,0])
+	plt.xlabel('Zeta')
+	plt.ylabel('M_min')
+	plt.title('Zeta Error')
+	plt.colorbar()
+	plt.show()
+	plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,1])
+	plt.xlabel('Zeta')
+	plt.ylabel('M_min')
+	plt.title('M_min Error')
+	plt.colorbar()
+	plt.show()
+	plt.scatter(y_test[:, 0], y_test[:, 1], c=np.mean(X_test, axis=1))
+	plt.xlabel('Zeta')
+	plt.ylabel('M_min')
+	plt.title('Mean power')
+	plt.colorbar()
+	plt.show()
+	plt.scatter(y_test[:, 0], y_test[:, 1], c=np.var(X_test, axis=1))
+	plt.xlabel('Zeta')
+	plt.ylabel('M_min')
+	plt.title('Variance in power')
+	plt.colorbar()
+	plt.show()
+
 	plt.plot(sample_sizes, training_loss, label='Training Loss')
 	#plt.plot(sample_sizes, validation_loss, label='Validation Loss')
 	plt.plot(sample_sizes, test_loss, label='Test Loss')
@@ -235,6 +288,10 @@ def run(X_train, X_test, y_train, y_test):
 	plt.xlabel('True Value')
 	plt.show()
 
+	save_model(model)
+
+tf.config.list_physical_devices('GPU')
+print("### GPU Enabled!!!")
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
 X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 run(X_train, X_test, y_train, y_test)
