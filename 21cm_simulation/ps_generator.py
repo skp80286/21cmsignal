@@ -55,7 +55,7 @@ print("Cache cleared")
 #               "POWER_SPECTRUM": 5} # POWER_SPECTRUM: CLASS
 #flag_options = { "USE_MINI_HALOS": True, "M_MIN_in_Mass": True, "USE_MASS_DEPENDENT_ZETA": True, 
 #                "INHOMO_RECO": True, "US_TS_FLUCT": True}
-user_params = { "HII_DIM": 40, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": 6, "USE_FFTW_WISDOM": True}
+user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": 6, "USE_FFTW_WISDOM": True}
 flag_options = { }
 
 # File for storing Brightness Temperature maps
@@ -83,7 +83,7 @@ m_min_high = m_min_base+math.log10(10) # multiply by 10
 #m_min_high = math.log10(1.19e+11) 
 
 z = 9.1
-nsets = 2000 # number of powerspectra datasets to generate
+nsets = 10000 # number of powerspectra datasets to generate
 
 k_len = -1
 
@@ -91,7 +91,10 @@ print(f'nsets: {nsets}, zeta:[{zeta_low},{zeta_high}], M_min:[{m_min_low},{m_min
 
 start_time = time.time()
 for i in range(nsets):
-    if i%100 == 99: print(f'set#{i+1}') 
+    if i%100 == 99: 
+        elapsed = time.time() - start_time
+        remaining = elapsed * (float(nsets)/i) - elapsed
+        print(f'set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
     zeta = np.random.uniform(zeta_low, zeta_high)
     m_min = np.random.uniform(m_min_low, m_min_high)
     astro_params = {   
