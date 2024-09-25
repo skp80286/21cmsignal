@@ -148,7 +148,7 @@ def run(X_train, X_test, y_train, y_test):
 
 	optimizer='Adagrad'
 	learning_rate = 0.0001
-	hidden_layer_dim = 3076
+	hidden_layer_dim = 3072
 	activation = "tanh"
 	activation2 = "linear"
 	
