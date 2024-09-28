@@ -11,3 +11,4 @@ ps-c/output/ps_6.dat
 ps-c/ps_gk.o
 ps-c/ps_gk
 21cm_simulation/cursor_test.py
+21cm_simulation/output/bt*pkl
