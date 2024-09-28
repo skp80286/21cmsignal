@@ -193,6 +193,8 @@ dT, e = (None, None)
 start_time = time.time()
 smooth_time = 0
 ps_compute_time = 0
+cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
+
 with open(bt_filename, 'rb') as input_file:  # open a text file
     while True:
         if lines%100 == 1: 
@@ -232,7 +234,7 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
 
             #with open(bt_noise_filename, 'ab') as output_file:  # open a binary file for appending
             #    pickle.dump({"zeta": zeta, "m_min": m_min, "bt": dT_noise}, output_file)
-            ps, k = CPS.compute_power_spectrum_opt(user_params["HII_DIM"], dT_noise, user_params["BOX_LEN"])
+            ps, k = cps.compute_power_spectrum_opt(dT_noise)
             time3 = time.time_ns()
             ps_compute_time += (time3 - time2)
             #print('Printing powerspectrum:')
