@@ -1,18 +1,6 @@
 #!python
 
 import numpy as np
-import collections.abc
-#py21cmmc needs the four following aliases to be done manually.
-collections.Iterable = collections.abc.Iterable
-collections.Mapping = collections.abc.Mapping
-collections.MutableSet = collections.abc.MutableSet
-collections.MutableMapping = collections.abc.MutableMapping
-#py21cmmc needs the below
-np.int = np.int32
-#Now import py21cmmc
-from py21cmmc import analyse
-from py21cmmc import mcmc
-import py21cmmc as p21mc
 import math
 import pickle
 from datetime import datetime
@@ -36,6 +24,23 @@ from py21cmfast import cache_tools
 from compute_power_spectrum import ComputePowerSpectrum as CPS
 
 import pickle
+
+##############
+# Utility method for plotting
+##############
+def plot(dT):
+    print ('Plotting signal without and with noise')
+    plt.rcParams['figure.figsize'] = [15, 6]
+    plt.suptitle('$z=%.2f$ $x_v=%.3f$' %(z, 0), size=18) # xfrac.mean()
+    plt.subplot(121)
+    plt.title('noiseless cube slice')
+    plt.pcolormesh(dT[:][10][:])
+    plt.colorbar(label='$\delta T^{signal}$ [mK]')
+    plt.subplot(122)
+    plt.title('signal distribution')
+    plt.hist(dT.flatten(), bins=149, histtype='step')
+    plt.xlabel('$\delta T^{signal}$ [mK]'), plt.ylabel('$S_{sample}$')
+    plt.show()
 
 print(f"Using 21cmFAST version {p21c.__version__}")
 
@@ -83,31 +88,39 @@ m_min_high = m_min_base+math.log10(10) # multiply by 10
 #m_min_high = math.log10(1.19e+11) 
 
 z = 9.1
-nsets = 10000 # number of powerspectra datasets to generate
+nsets = 20 # number of powerspectra datasets to generate
 
 k_len = -1
 
-print(f'nsets: {nsets}, zeta:[{zeta_low},{zeta_high}], M_min:[{m_min_low},{m_min_high}]')
+timestamp = datetime.now().strftime("%H:%M:%S")
+print(f'{timestamp}: nsets: {nsets}, zeta:[{zeta_low},{zeta_high}], M_min:[{m_min_low},{m_min_high}]')
 
+cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
 start_time = time.time()
+coeval_time = 0
+ps_compute_time = 0
+bt_write_time = 0
 for i in range(nsets):
-    if i%100 == 99: 
-        elapsed = time.time() - start_time
-        remaining = elapsed * (float(nsets)/i) - elapsed
-        print(f'set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
     zeta = np.random.uniform(zeta_low, zeta_high)
     m_min = np.random.uniform(m_min_low, m_min_high)
     astro_params = {   
         "HII_EFF_FACTOR": zeta,
         "ION_Tvir_MIN": m_min
     }
+    time1 = time.time_ns()
     coeval = p21c.run_coeval(redshift=9.1, user_params = user_params, astro_params=astro_params, flag_options=flag_options)
+    time2 = time.time_ns()
+    coeval_time += time2 - time1
     #print(f'Brightness temp shape {coeval.brightness_temp.shape}')
     with open(bt_filename, 'a+b') as f:  # open a text file
         pickle.dump({"zeta": zeta, "m_min": m_min, "bt": coeval.brightness_temp}, f)
+    time3 = time.time_ns()
+    bt_write_time += time3 - time2
 
     #ps = p21mc.Likelihood1DPowerCoeval.compute_power(coeval.brightness_temp, L=100, n_psbins = 10) 
-    ps, k = CPS.compute_power_spectrum(user_params["HII_DIM"], coeval.brightness_temp, user_params["BOX_LEN"])
+    ps, k = cps.compute_power_spectrum_opt(coeval.brightness_temp)
+    time4 = time.time_ns()
+    ps_compute_time += time4 - time3
 
     # Data validity - skip invalid records
     if (k_len < 0):
@@ -119,4 +132,15 @@ for i in range(nsets):
     
     with open(ps_filename, 'a+b') as f:  # open a text file
         pickle.dump({"zeta": zeta, "m_min": m_min, "ps": ps, "k": k}, f)
+
+    if i%100 == 0: 
+        elapsed = time.time() - start_time
+        remaining = elapsed * (float(nsets)/(i+1)) - elapsed
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f'{timestamp}: set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
+        print(f'coeval_time={coeval_time/1e6}ms , ps_compute_time={ps_compute_time/1e6}ms, bt_write_time={bt_write_time/1e6}ms') 
+    if (i == 5):
+        plot(coeval.brightness_temp)
+        print("Printing powerspectrum")
+        print(ps)
 print("--- %s seconds ---" % (time.time() - start_time))
