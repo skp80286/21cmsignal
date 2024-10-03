@@ -38,6 +38,7 @@ def load_dataset(filename):
 				# one of the outputs at the expense of the other
 				#params = [float(e['zeta']), float(e['m_min'])*90-320]
 				params = [float(e['zeta']), float(e['m_min'])]
+				#if True:
 				if(params[1] > 4.25 and params[0] > 25 and params[0] < 150):
 					y.append(params)
 					ps = [float(x) for x in e['ps']]
@@ -169,7 +170,7 @@ def run(X_train, X_test, y_train, y_test):
 
 	optimizer='Adagrad'
 	learning_rate = 0.0001
-	hidden_layer_dim = 3072
+	hidden_layer_dim = 2048
 	activation = "tanh"
 	activation2 = "linear"
 	
@@ -293,7 +294,9 @@ def run(X_train, X_test, y_train, y_test):
 tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
+X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
+#X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240925215505.pkl")
+#X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 run(X_train, X_test, y_train, y_test)
 #grid_search(X, y)
 

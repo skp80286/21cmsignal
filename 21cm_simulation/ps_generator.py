@@ -44,15 +44,16 @@ def plot(dT):
 
 print(f"Using 21cmFAST version {p21c.__version__}")
 
-if not os.path.exists('_cache'):
-    os.mkdir('_cache')
-    print("created _cache folder")
+timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+pid = str(os.getpid())
+cache_dir = (os.environ['TEMP'] or ".") + "/_p21c_cache-" + timestamp + "-" + pid
+if not os.path.exists(cache_dir):
+    os.mkdir(cache_dir)
+    print("created " + cache_dir)
 
-p21c.config['direc'] = '_cache'
-
-
-cache_tools.clear_cache(direc="_cache")
-print("Cache cleared")
+p21c.config['direc'] = cache_dir
+cache_tools.clear_cache(direc=cache_dir)
+#print("Cache cleared")
 
 ## Params to be used if using Mass for Zeta
 #user_params = { "HII_DIM": 20, "BOX_LEN": 200, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, 
@@ -64,11 +65,11 @@ user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_I
 flag_options = { }
 
 # File for storing Brightness Temperature maps
-bt_filename = datetime.now().strftime("output/bt-%Y%m%d%H%M%S.pkl")
+bt_filename = "output/bt-" + timestamp + "-" + pid + ".pkl"
 print(bt_filename)
 
 # File for storing Power Spectra
-ps_filename = datetime.now().strftime("output/ps-%Y%m%d%H%M%S.pkl")
+ps_filename = "output/ps-" + timestamp + "-" + pid + ".pkl"
 print(ps_filename)
 
 #zeta_base = 30.0
@@ -88,12 +89,12 @@ m_min_high = m_min_base+math.log10(10) # multiply by 10
 #m_min_high = math.log10(1.19e+11) 
 
 z = 9.1
-nsets = 20 # number of powerspectra datasets to generate
+nsets = 2000 # number of powerspectra datasets to generate
 
 k_len = -1
 
-timestamp = datetime.now().strftime("%H:%M:%S")
-print(f'{timestamp}: nsets: {nsets}, zeta:[{zeta_low},{zeta_high}], M_min:[{m_min_low},{m_min_high}]')
+logtimestamp = datetime.now().strftime("%H:%M:%S")
+print(f'{logtimestamp}: nsets: {nsets}, zeta:[{zeta_low},{zeta_high}], M_min:[{m_min_low},{m_min_high}]')
 
 cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
 start_time = time.time()
@@ -108,7 +109,8 @@ for i in range(nsets):
         "ION_Tvir_MIN": m_min
     }
     time1 = time.time_ns()
-    coeval = p21c.run_coeval(redshift=9.1, user_params = user_params, astro_params=astro_params, flag_options=flag_options)
+    cache_tools.clear_cache(direc=cache_dir)
+    coeval = p21c.run_coeval(redshift=z, user_params = user_params, astro_params=astro_params, flag_options=flag_options)
     time2 = time.time_ns()
     coeval_time += time2 - time1
     #print(f'Brightness temp shape {coeval.brightness_temp.shape}')
@@ -136,10 +138,10 @@ for i in range(nsets):
     if i%100 == 0: 
         elapsed = time.time() - start_time
         remaining = elapsed * (float(nsets)/(i+1)) - elapsed
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f'{timestamp}: set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
+        logtimestamp = datetime.now().strftime("%H:%M:%S")
+        print(f'{logtimestamp}: set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
         print(f'coeval_time={coeval_time/1e6}ms , ps_compute_time={ps_compute_time/1e6}ms, bt_write_time={bt_write_time/1e6}ms') 
-    if (i == 5):
+    if False: #(i == 5):
         plot(coeval.brightness_temp)
         print("Printing powerspectrum")
         print(ps)
