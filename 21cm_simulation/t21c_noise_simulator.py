@@ -9,16 +9,31 @@ from datetime import datetime
 import time
 import pickle
 from compute_power_spectrum import ComputePowerSpectrum as CPS
+import argparse
 
+parser = argparse.ArgumentParser(description='Simulate 21cm cosmological signal with noise and foreground.')
+parser.add_argument('-f', '--foreground', action='store_true', help='Add Galactic Synchrotron foreground')
+parser.add_argument('-d', '--demo', action='store_true', help='Run in demo mode, single row with plots and informational screen output')
+parser.add_argument('-n', '--nsets', type=int, default=100000, help='Limit processing to specified number of rows')
+parser.add_argument('-s', '--sliceindex', type=int, default=10, help='Slice index to plot. Used in demo mode.')
+parser.add_argument('-r', '--rowindex', type=int, default=18, help='Row index to plot. Used in demo mode.')
+parser.add_argument('-p', '--datapath', type=str, default='./data/', help='Path to data files')
+parser.add_argument('-z', '--redshift', type=float, default=9.1, help='redshift')
+parser.add_argument('-c', '--cells', type=int, default=80, help='number of cells, each side of cube')
+parser.add_argument('-l', '--length', type=int, default=100, help='length of each side of cube in Mpc')
+
+args = parser.parse_args()
+
+if args.demo:
+    print("### Demo Mode ###")
 ##############
 # Utility method for plotting
 ##############
 def plot_cube_slice(dT, title):
     plt.rcParams['figure.figsize'] = [15, 6]
-    plt.suptitle('$z=%.2f$ $x_v=%.3f$' %(z, 0), size=18) # xfrac.mean()
     plt.subplot(121)
     plt.title(title + ' cube slice')
-    plt.pcolormesh(dT[:][17][:])
+    plt.pcolormesh(dT[:][args.sliceindex][:])
     plt.colorbar(label='$\delta T^{signal}$ [mK]')
     plt.subplot(122)
     plt.title(title + ' signal distribution')
@@ -32,14 +47,14 @@ def plot_power_spectrum(ps1, ks1, ps2, ks2, title1, title2):
     plt.rcParams['figure.figsize'] = [15, 6]
     plt.subplot(121)
     plt.title(title1 + ' Spherically averaged power spectrum.')
-    plt.loglog(ks1, ps1*ks1**3/2/np.pi**2)
+    plt.loglog(ks1, ps1)
     #plt.xlim(right = 2)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
 
     plt.subplot(122)
     plt.title(title2 + ' Spherically averaged power spectrum.')
-    plt.loglog(ks2, ps2*ks2**3/2/np.pi**2)
+    plt.loglog(ks2, ps2)
     #plt.xlim(right = 2)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
@@ -49,15 +64,15 @@ def plot_power_spectrum(ps1, ks1, ps2, ks2, title1, title2):
 ###
 # Constants
 ###
-demo_mode = True # Generate single cube only and plot the data.
-
 z=9.1
-path_to_datafiles = './data/'
-user_params = { "HII_DIM": 80, "BOX_LEN": 100 }
+user_params = { "HII_DIM": args.cells, "BOX_LEN": args.length }
 ncells = user_params["HII_DIM"]
+# Create grid useful for plotting
 dx, dy = (user_params["BOX_LEN"]/ncells, user_params["BOX_LEN"]/ncells)
 y, x = np.mgrid[slice(dy/2, user_params["BOX_LEN"], dy),
                 slice(dx/2, user_params["BOX_LEN"], dx)]
+
+# Input and output filenames
 now = datetime.now()
 noise_filename = now.strftime("output/noise-%Y%m%d%H%M%S-__PH__")
 bt_filename = 'output/bt-80-7000.pkl'
@@ -69,63 +84,13 @@ print(noise_filename)
 print(bt_filename)
 print(bt_noise_filename)
 ###
-# calculate the uv-coverage for SKA1-Low configuration
-###
-
-#uv, Nant = t2c.get_uv_daily_observation(ncells=ncells, # The number of cell used to make the image
-#                                        z=z,                # Redhsift of the slice observed
-#                                        filename=None,      # If None, it uses the SKA-Low 2016 configuration.
-#                                        total_int_time=6.0, # Observation per day in hours.
-#                                        int_time=10.0,      # Time period of recording the data in seconds.
-#                                        boxsize=user_params["BOX_LEN"],    # Comoving size of the sky observed
-#                                        declination=-30.0,
-#                                        verbose=True)
-
-#np.save(noise_filename.replace('__PH__', 'uv_map.npy'), uv)
-#np.save(noise_filename.replace('__PH__', 'Nant.npy'), Nant)
-
-###
-# Plot the uv map
-###
-#plt.rcParams['figure.figsize'] = [5, 5]
-
-#plt.title(r'$z=%.3f$ $\nu_{obs}=%.2f$ MHz' %(z, t2c.z_to_nu(z)))
-#plt.pcolormesh(x, y, np.log10(np.fft.fftshift(uv)))
-#plt.xlabel('u [$Mpc^-1$]'), plt.ylabel('v [$Mpc^-1$]')
-#plt.colorbar()
-#plt.show()
-
-###
-# plot the location of SKA-Low antennas
-###
-
-#ska_ant = t2c.SKA1_LowConfig_Sept2016()
-
-#fig, ax = plt.subplots(figsize=(5, 5))
-#plt.plot(ska_ant[:,0], ska_ant[:,1], '.')
-#x1, x2, y1, y2 = 116.2, 117.3, -26.45, -27.25
-#ax.set_xlim(x1, x2)
-#ax.set_ylim(y1, y2)
-#ax.grid(b=True, alpha=0.5)
-
-#axins = inset_axes(ax, 1, 1, loc=4, bbox_to_anchor=(0.2, 0.2))
-#plt.plot(ska_ant[:,0], ska_ant[:,1], ',')
-#x1, x2, y1, y2 = 116.75, 116.78, -26.815, -26.833
-#axins.set_xlim(x1, x2)
-#axins.set_ylim(y1, y2)
-##axins.grid(b=True, alpha=0.5)
-#mark_inset(ax, axins, loc1=4, loc2=2, fc="none", ec="0.5")
-#axins.axes.xaxis.set_ticks([]);
-#axins.axes.yaxis.set_ticks([]);
-#plt.show()
-
-###
 # simulate 21-cm noise cube
 ###
-# noise_cube = np.random.normal(0,1000,(80,80,80))
+# noise_cube = np.random.normal(0,1000,(80,80,80)) # random Gaussian noise for testing
 uv, Nant = None, None
-uv_store = f'{path_to_datafiles}uv-{z}-{ncells}-{user_params["BOX_LEN"]}.npy'
-Nant_store = f'{path_to_datafiles}Nant-{z}-{ncells}-{user_params["BOX_LEN"]}.npy'
+# We try to avoid uv map generation by storing it in the data directory
+uv_store = f'{args.datapath}uv-{z}-{ncells}-{user_params["BOX_LEN"]}.npy'
+Nant_store = f'{args.datapath}Nant-{z}-{ncells}-{user_params["BOX_LEN"]}.npy'
 try:
     uv = np.load(uv_store)
     Nant = np.load(Nant_store)
@@ -140,10 +105,6 @@ except OSError:
                                         declination=-30.0,  # SKA-Low setting
                                         verbose=False)
 
-# %% [markdown]
-# We suggest that you save the uv map as it is computationally expensive. Expecially when computed for an array of redshifts.
-
-# %%
     np.save(uv_store, uv)
     np.save(Nant_store, Nant)
 
@@ -161,18 +122,12 @@ noise_cube = t2c.noise_cube_coeval(ncells=ncells,
                                     verbose=False,
                                     fft_wrap=False)
 
-#plt.rcParams['figure.figsize'] = [16, 6]
-
-#plt.suptitle('$z=%.3f$ $x_v=%.3f$' %(z, 0), size=18) # xfrac.mean()
-#plt.subplot(121)
-#plt.title('noise cube slice')
-#plt.pcolormesh(noise_cube[0])
-#plt.colorbar(label='$\delta T^{noise}$ [mK]')
-#plt.subplot(122)
-#plt.title('noise distribution')
-#plt.hist(noise_cube.flatten(), bins=150, histtype='step');
-#plt.xlabel('$\delta T^{noise}$ [mK]'), plt.ylabel('$N_{sample}$');
-#plt.show()
+# Generate mock Galactic foreground and store it as a cube.
+if args.foreground:
+    fg_2d = t2c.foreground_model.galactic_synch_fg(z=z, ncells=ncells, boxsize=user_params['BOX_LEN'])
+    fg_3d = np.zeros((ncells, ncells, ncells), dtype=float)
+    for k in range(ncells):
+        fg_3d[k] = fg_2d 
 
 ###
 # Load the noiseless brightness temp cube
@@ -183,23 +138,26 @@ dT, e = (None, None)
 start_time = time.time()
 smooth_time = 0
 ps_compute_time = 0
+
+# Initialize powerspectrum computation
 cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
 
-if demo_mode: # skip 18 lines
+if args.demo: # skip some lines and load a ps to plot
     with open(ps_filename, 'rb') as input_file:  # open a text file
-        for i in range(18):
+        for i in range(args.rowindex):
             e = pickle.load(input_file)
         e = pickle.load(input_file)
         ps_orig = e["ps"]
         k_orig = e["k"]
 
+# Read Brightness Temp cubes from file one-by-one and process it
 with open(bt_filename, 'rb') as input_file:  # open a text file
     while True:
-        if demo_mode: # skip 18 lines
-            for i in range(18):
+        if args.demo: # skip a few lines
+            for i in range(args.rowindex):
                 e = pickle.load(input_file)
 
-        if lines%100 == 1: 
+        if lines%100 == 1: # Useful logging for monitoring a longrunning computation
             elapsed = time.time() - start_time
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f'{timestamp}: line#{lines}, {elapsed}s elapsed, {elapsed/(lines)}s per line') 
@@ -209,23 +167,25 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             dT = e["bt"]
             zeta = e["zeta"]
             m_min = e["m_min"]
-            if demo_mode: 
+            if args.demo: 
                 print(f"dT.shape={dT.shape}, noise_cube.shape={noise_cube.shape}")
                 print("Printing noiseless cube slice:")
-                print(dT[:][17][:])
-                print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
+                print(dT[:][args.sliceindex][:])
+                print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][args.sliceindex][:].flatten().mean(), dT[:][args.sliceindex][:].flatten().min(), dT[:][args.sliceindex][:].flatten().max()))
                 plot_cube_slice(dT, "Noiseless")
-
-            ps_noiseless, k_noiseless = CPS.compute_power_spectrum(user_params["HII_DIM"], dT, user_params["BOX_LEN"])
+                ps_noiseless, k_noiseless = CPS.compute_power_spectrum(user_params["HII_DIM"], dT, user_params["BOX_LEN"])
 
             dT = t2c.subtract_mean_signal(dT, 0)
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
 
             #print('Mean of first noise channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(noise_cube[:][10][:].flatten().mean(), noise_cube[:][10][:].flatten().min(), noise_cube[:][10][:].flatten().max()))
-            if demo_mode: plot_cube_slice(noise_cube, "Noise")
+            if args.demo: plot_cube_slice(noise_cube, "Noise")
             dT_noise = dT + noise_cube
-            if demo_mode: plot_cube_slice(dT_noise, "Signal with noise")
+            if args.demo: plot_cube_slice(dT_noise, "Signal with noise")
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT_noise[:][10][:].flatten().mean(), dT_noise[:][10][:].flatten().min(), dT_noise[:][10][:].flatten().max()))
+            if args.foreground:
+                dT_noise = noise_cube + fg_3d
+                if args.demo: plot_cube_slice(dT_noise, "Signal with noise and foreground")
         
             time1 = time.time_ns() 
             dT_noise = t2c.smooth_coeval(cube=dT_noise,    # Data cube that is to be smoothed
@@ -235,9 +195,9 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
                               ratio=1.0,            # Ratio of smoothing scale in frequency direction
                               nu_axis=2, 
                               verbose=False)            # frequency axis
-            if demo_mode: plot_cube_slice(dT_noise, "Smoothed signal with noise")
             time2 = time.time_ns()
             smooth_time += (time2 - time1)
+            if args.demo: plot_cube_slice(dT_noise, "Smoothed signal with noise")
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT_noise[:][10][:].flatten().mean(), dT_noise[:][10][:].flatten().min(), dT_noise[:][10][:].flatten().max()))
 
             #with open(bt_noise_filename, 'ab') as output_file:  # open a binary file for appending
@@ -247,8 +207,9 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             ps_compute_time += (time3 - time2)
             #print('Printing powerspectrum:')
             #print(ps)
-            if demo_mode: plot_power_spectrum(ps_orig, k_orig, ps_noiseless, k_noiseless, "Original", "Noiseless")
-            if demo_mode: plot_power_spectrum(ps_noiseless, k_noiseless, ps, k, "Noiseless", "With noise")
+            if args.demo: 
+                plot_power_spectrum(ps_orig, k_orig, ps_noiseless, k_noiseless, "Original", "Noiseless")
+                plot_power_spectrum(ps_noiseless, k_noiseless, ps, k, "Noiseless", "With noise")
 
             # Data validity - skip invalid records
             if (k_len < 0):
@@ -257,6 +218,7 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
                 print ("Invalid powerspectrum record: skipping...")
                 continue
             
+            # Store the noisy powerspectrum
             with open(ps_noise_filename, 'a+b') as f:  # open a text file
                 pickle.dump({"zeta": zeta, "m_min": m_min, "ps": ps, "k": k}, f)
             
@@ -265,6 +227,6 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             #if (lines == 10): break # artificial limit for testing
         except EOFError:
             break
-        if demo_mode: break # Just do one line
+        if args.demo or lines >= args.nsets: break 
 
 print("--- processed %d lines ---" % lines)
