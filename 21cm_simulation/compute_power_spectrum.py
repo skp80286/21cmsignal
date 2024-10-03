@@ -10,21 +10,38 @@ class ComputePowerSpectrum:
         self.N = nbox * nbox * nbox
         self.kf = 2 * np.pi / box_size
         self.coeff = (box_size / (2.0 * np.pi)) ** 2
+        self.powspec_coeff = (self.box_size ** 3.0) / (self.nbox ** 6.0) 
         self.nhalf = nbox // 2
-        
         # Generate wavenumbers
         self.w = np.zeros(nbox, dtype=np.float64)
         for i in range(nbox):
             iw = i - nbox if i > self.nhalf else i
             self.w[i] = self.kf * iw
-        
-        self.i1 = np.zeros((nbox, nbox, nbox), dtype=np.int32)
+        self.w_cube = (self.w ** 3) / (2.0 * np.pi * np.pi)
+
+        self.radial = np.zeros((nbox, nbox, nbox), dtype=np.int32)
         for i in range(self.nbox):
             for j in range(self.nbox):
                 for k in range(self.nbox):
                     # consider k as a 3D vector and calculate its magnitude squared
                     g = self.w[i] ** 2 + self.w[j] ** 2 + self.w[k] ** 2
-                    if g != 0: self.i1[i][j][k] = int(0.5 + np.sqrt(g * self.coeff))
+                    if g != 0: self.radial[i][j][k] = int(0.5 + np.sqrt(g * self.coeff))
+
+        self.iweights = np.zeros(int(0.5 + np.sqrt(3) * self.nbox), dtype=np.int64)
+        for i in range(nbox):
+            i1 = i
+            if i1 >= self.nhalf:
+                i1 = self.nbox - i1 
+            for j in range(self.nbox):
+                i2 = j
+                if i2 >= self.nhalf:
+                    i2 = self.nbox - i2 
+                for k in range(self.nbox):
+                    i3 = k
+                    if i3 >= self.nhalf:
+                        i3 = self.nbox - i3 
+                    m = 0.5 + np.sqrt(i1**2 + i2**2 + i3**2)
+                    self.iweights[int(m)] += 1
 
     def compute_power_spectrum(nbox, grid, box_size):
         # Total number of points in the grid (cubic)
@@ -119,13 +136,22 @@ class ComputePowerSpectrum:
             for j in range(self.nbox):
                 for k in range(self.nbox):
                     # consider k as a 3D vector and calculate its magnitude squared
-                    i1 = self.i1[i][j][k]
-                    if i1 != 0:
+                    r = self.radial[i][j][k]
+                    if r != 0:
                         # Calculate the index of the 'k' bin in the power spectrum
                         # Calculate the contribution to the power spectrum
                         contrib = (np.abs(fft_data[i,j,k]) ** 2)
                         #if (i==1 and j==1):
                         #    print(f"Contrib: {i} {j} {k} {g} {coeff} {i1} {fft_data[i,j,k]} {contrib}")
-                        powspec[i1] += contrib
+                        powspec[r] += contrib
 
-        return (powspec, self.w)
+        deltasqk = np.zeros(self.nbox, dtype=np.float64)
+        
+        for i in range(self.nhalf):
+            powspec[i] = powspec[i] * self.powspec_coeff
+            powspec[i] /= float(self.iweights[i])
+            deltasqk[i] = self.w_cube[i] * powspec[i] 
+        
+        #for i in range(nhalf):
+        #    print(f"{w[i]}  {powspec[i]}  {deltasqk[i]}  {iweights[i]}")
+        return (deltasqk, self.w)

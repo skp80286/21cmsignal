@@ -13,47 +13,34 @@ from compute_power_spectrum import ComputePowerSpectrum as CPS
 ##############
 # Utility method for plotting
 ##############
-def plot(x, y, dT1, dT2, ps, ks, ps1, ks1):
-    print ('Plotting signal without and with noise')
+def plot_cube_slice(dT, title):
     plt.rcParams['figure.figsize'] = [15, 6]
     plt.suptitle('$z=%.2f$ $x_v=%.3f$' %(z, 0), size=18) # xfrac.mean()
     plt.subplot(121)
-    plt.title('noiseless cube slice')
-    plt.pcolormesh(dT1[:][10][:])
+    plt.title(title + ' cube slice')
+    plt.pcolormesh(dT[:][17][:])
     plt.colorbar(label='$\delta T^{signal}$ [mK]')
     plt.subplot(122)
-    plt.title('signal distribution')
-    plt.hist(dT1.flatten(), bins=149, histtype='step')
+    plt.title(title + ' signal distribution')
+    plt.hist(dT.flatten(), bins=149, histtype='step')
     plt.xlabel('$\delta T^{signal}$ [mK]'), plt.ylabel('$S_{sample}$')
     plt.show()
 
+def plot_power_spectrum(ps1, ks1, ps2, ks2, title1, title2):
+    print(ks1)
+    print(ks2)
     plt.rcParams['figure.figsize'] = [15, 6]
-    plt.suptitle('$z=%.2f$ $x_v=%.3f$' %(z, 0), size=18) # xfrac.mean()
     plt.subplot(121)
-    plt.title('noisy cube slice')
-    plt.pcolormesh(dT2[:][10][:])
-    plt.colorbar(label='$\delta T^{signal}$ [mK]')
-    plt.subplot(122)
-    plt.title('signal distribution')
-    plt.hist(dT2.flatten(), bins=149, histtype='step')
-    plt.xlabel('$\delta T^{signal}$ [mK]'), plt.ylabel('$S_{sample}$')
-    plt.show()
-
-    plt.rcParams['figure.figsize'] = [15, 6]
-
-    plt.subplot(121)
-    plt.title('Noiseless Spherically averaged power spectrum.')
-    plt.loglog(ks, ps*ks**3/2/np.pi**2)
+    plt.title(title1 + ' Spherically averaged power spectrum.')
+    plt.loglog(ks1, ps1*ks1**3/2/np.pi**2)
     #plt.xlim(right = 2)
-    plt.ylim(0.6, 40)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
 
     plt.subplot(122)
-    plt.title('With-Noise Spherically averaged power spectrum.')
-    plt.loglog(ks1, ps1*ks1**3/2/np.pi**2)
+    plt.title(title2 + ' Spherically averaged power spectrum.')
+    plt.loglog(ks2, ps2*ks2**3/2/np.pi**2)
     #plt.xlim(right = 2)
-    plt.ylim(0.6, 40)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
     plt.show()
@@ -62,6 +49,8 @@ def plot(x, y, dT1, dT2, ps, ks, ps1, ks1):
 ###
 # Constants
 ###
+demo_mode = True # Generate single cube only and plot the data.
+
 z=9.1
 path_to_datafiles = './data/'
 user_params = { "HII_DIM": 80, "BOX_LEN": 100 }
@@ -72,6 +61,7 @@ y, x = np.mgrid[slice(dy/2, user_params["BOX_LEN"], dy),
 now = datetime.now()
 noise_filename = now.strftime("output/noise-%Y%m%d%H%M%S-__PH__")
 bt_filename = 'output/bt-80-7000.pkl'
+ps_filename = 'output/ps-80-7000.pkl'
 #bt_filename = 'output/bt-20240925113738.pkl'
 bt_noise_filename = now.strftime("output/bt-noise-%Y%m%d%H%M%S.pkl")
 ps_noise_filename = now.strftime("output/ps-noise-%Y%m%d%H%M%S.pkl")
@@ -195,8 +185,20 @@ smooth_time = 0
 ps_compute_time = 0
 cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
 
+if demo_mode: # skip 18 lines
+    with open(ps_filename, 'rb') as input_file:  # open a text file
+        for i in range(18):
+            e = pickle.load(input_file)
+        e = pickle.load(input_file)
+        ps_orig = e["ps"]
+        k_orig = e["k"]
+
 with open(bt_filename, 'rb') as input_file:  # open a text file
     while True:
+        if demo_mode: # skip 18 lines
+            for i in range(18):
+                e = pickle.load(input_file)
+
         if lines%100 == 1: 
             elapsed = time.time() - start_time
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -207,19 +209,24 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             dT = e["bt"]
             zeta = e["zeta"]
             m_min = e["m_min"]
-            #print(f"dT.shape={dT.shape}, noise_cube.shape={noise_cube.shape}")
-            #print("Printing noiseless cube slice:")
-            #print(dT[:][0][:])
-            #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
-            #ps, k = CPS.compute_power_spectrum(user_params["HII_DIM"], dT, user_params["BOX_LEN"])
+            if demo_mode: 
+                print(f"dT.shape={dT.shape}, noise_cube.shape={noise_cube.shape}")
+                print("Printing noiseless cube slice:")
+                print(dT[:][17][:])
+                print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
+                plot_cube_slice(dT, "Noiseless")
+
+            ps_noiseless, k_noiseless = CPS.compute_power_spectrum(user_params["HII_DIM"], dT, user_params["BOX_LEN"])
 
             dT = t2c.subtract_mean_signal(dT, 0)
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
 
             #print('Mean of first noise channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(noise_cube[:][10][:].flatten().mean(), noise_cube[:][10][:].flatten().min(), noise_cube[:][10][:].flatten().max()))
+            if demo_mode: plot_cube_slice(noise_cube, "Noise")
             dT_noise = dT + noise_cube
+            if demo_mode: plot_cube_slice(dT_noise, "Signal with noise")
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT_noise[:][10][:].flatten().mean(), dT_noise[:][10][:].flatten().min(), dT_noise[:][10][:].flatten().max()))
-            
+        
             time1 = time.time_ns() 
             dT_noise = t2c.smooth_coeval(cube=dT_noise,    # Data cube that is to be smoothed
                               z=z,                  # Redshift of the coeval cube
@@ -228,6 +235,7 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
                               ratio=1.0,            # Ratio of smoothing scale in frequency direction
                               nu_axis=2, 
                               verbose=False)            # frequency axis
+            if demo_mode: plot_cube_slice(dT_noise, "Smoothed signal with noise")
             time2 = time.time_ns()
             smooth_time += (time2 - time1)
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT_noise[:][10][:].flatten().mean(), dT_noise[:][10][:].flatten().min(), dT_noise[:][10][:].flatten().max()))
@@ -239,6 +247,8 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             ps_compute_time += (time3 - time2)
             #print('Printing powerspectrum:')
             #print(ps)
+            if demo_mode: plot_power_spectrum(ps_orig, k_orig, ps_noiseless, k_noiseless, "Original", "Noiseless")
+            if demo_mode: plot_power_spectrum(ps_noiseless, k_noiseless, ps, k, "Noiseless", "With noise")
 
             # Data validity - skip invalid records
             if (k_len < 0):
@@ -255,5 +265,6 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             #if (lines == 10): break # artificial limit for testing
         except EOFError:
             break
+        if demo_mode: break # Just do one line
 
 print("--- processed %d lines ---" % lines)
