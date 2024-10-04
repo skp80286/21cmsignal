@@ -24,6 +24,14 @@ import tensorflow as tf
 
 from datetime import datetime
 import time
+import argparse
+
+parser = argparse.ArgumentParser(description='Build a neural network based ML model to predict reionization parameters from power spectrum of 21 cm brightness temperature.')
+parser.add_argument('-i', '--inputfile', type=str, default='../21cm_simulation/output/ps-80-7000.pkl', help='path to the powerspectrum file')
+parser.add_argument('-e', '--excludeouter', action='store_true', help='exclude outer range of reionization parameters in the dataset to get more accurate results.')
+parser.add_argument('-r', '--previewrows', type=int, default=10, help='Number of rows to print on screen for a preview of input data.')
+
+args = parser.parse_args()
 
 def load_dataset(filename):
 	X = []
@@ -39,11 +47,12 @@ def load_dataset(filename):
 				#params = [float(e['zeta']), float(e['m_min'])*90-320]
 				params = [float(e['zeta']), float(e['m_min'])]
 				#if True:
-				if(params[1] > 4.25 and params[0] > 25 and params[0] < 150):
+				if((not args.excludeouter) or
+	    			(params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
 					y.append(params)
 					ps = [float(x) for x in e['ps']]
 					X.append(ps) 
-					if lines < 10: print(f'params={params}, ps={ps}')
+					if lines < args.previewrows: print(f'params={params}, ps={ps}')
 					lines = lines + 1
 			except EOFError:
 				break
@@ -58,15 +67,39 @@ def load_dataset(filename):
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
 	return (X_train, X_test, y_train, y_test)
 
+## Not used
 def my_loss_fn(y_true, y_pred):
 	SS_res = tf.square(y_true - y_pred)
 	SS_tot = tf.square(y_true - tf.reduce_mean(y_true))
 	r2_inv = tf.reduce_sum(SS_res / (SS_tot + tf.constant(1e-7, dtype=tf.float32)))
 	return r2_inv
 
-
 def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 16, 
 				 activation = "tanh", activation2 = "leaky_relu"):
+	""""
+    Create a neural network model with specified paramters.
+
+    This function creates a Sequential model with multiple hidden layers and an output layer.
+    The number of neurons in each hidden layer is halved progressively.
+
+    Parameters:
+    optimizer (str): The optimizer to use for training. Default is 'Adgrad'.
+    learning_rate (float): The learning rate for the optimizer. Default is 0.0001.
+    hidden_layer_dim (int): The number of neurons in the first hidden layer. Default is 16. Subsequent 
+							layers have a dimension that is half of the previous layer.
+    activation (str): The activation function for the first hidden layer. Default is "tanh".
+    activation2 (str): The activation function for subsequent hidden layers. Default is "leaky_relu".
+
+    Returns:
+    keras.models.Sequential: A compiled Keras Sequential model ready for training.
+
+    The model architecture:
+    - Input layer: 80 neurons (matching the input shape)
+    - 5 hidden layers with progressively halved dimensions
+    - Output layer: 2 neurons (for Zeta and M_min predictions)
+
+    The model uses the Huber loss function and is compiled with the specified optimizer.
+    """
 	# Create a neural network model
 	model = Sequential()
 
@@ -161,7 +194,14 @@ def run(X_train, X_test, y_train, y_test):
 	validation_loss = []
 	test_loss = []
 	r2_scores = []
-	sample_sizes = [len(X_train)]  # Increasing sample sizes
+	
+	"""
+	We can specify sample sizes in ascending order here if we want to see 
+	the training and test loss curve trend as sample size increases. By default, 
+	we will train for only the full length of the available samples.
+	"""
+	sample_sizes = [len(X_train)]  
+	
 	y_pred = None
 	history = None
 	rms_scores = None
@@ -294,7 +334,9 @@ def run(X_train, X_test, y_train, y_test):
 tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
+X_train, X_test, y_train, y_test = load_dataset(args.inputfile)
+#X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-fg-80-7000.pkl")
+#X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240925215505.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 run(X_train, X_test, y_train, y_test)
