@@ -173,19 +173,25 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
                 print(dT[:][args.sliceindex][:])
                 print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][args.sliceindex][:].flatten().mean(), dT[:][args.sliceindex][:].flatten().min(), dT[:][args.sliceindex][:].flatten().max()))
                 plot_cube_slice(dT, "Noiseless")
-                ps_noiseless, k_noiseless = CPS.compute_power_spectrum(user_params["HII_DIM"], dT, user_params["BOX_LEN"])
+                ps_noiseless, k_noiseless = cps.compute_power_spectrum_opt(dT)
 
             dT = t2c.subtract_mean_signal(dT, 0)
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT[:][10][:].flatten().mean(), dT[:][10][:].flatten().min(), dT[:][10][:].flatten().max()))
 
             #print('Mean of first noise channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(noise_cube[:][10][:].flatten().mean(), noise_cube[:][10][:].flatten().min(), noise_cube[:][10][:].flatten().max()))
-            if args.demo: plot_cube_slice(noise_cube, "Noise")
+            if args.demo: 
+                plot_cube_slice(noise_cube, "Noise")
+                ps_noise, k_noise = cps.compute_power_spectrum_opt(noise_cube)
+                plot_power_spectrum(ps_noiseless, k_noiseless, ps_noise, k_noise, "Noiseless", "only noise")
             dT_noise = dT + noise_cube
             if args.demo: plot_cube_slice(dT_noise, "Signal with noise")
             #print('Mean of first channel: {0:.10f}, {1:.10f}, {2:.10f}'.format(dT_noise[:][10][:].flatten().mean(), dT_noise[:][10][:].flatten().min(), dT_noise[:][10][:].flatten().max()))
             if args.foreground:
-                dT_noise = noise_cube + fg_3d
-                if args.demo: plot_cube_slice(dT_noise, "Signal with noise and foreground")
+                dT_noise = dT_noise + fg_3d
+                if args.demo: 
+                    plot_cube_slice(dT_noise, "Signal with noise and foreground")
+                    ps_fg, k_fg = cps.compute_power_spectrum_opt(fg_3d)
+                    plot_power_spectrum(ps_noiseless, k_noiseless, ps_fg, k_fg, "Noiseless", "only fg")
         
             time1 = time.time_ns() 
             dT_noise = t2c.smooth_coeval(cube=dT_noise,    # Data cube that is to be smoothed
@@ -209,7 +215,7 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             #print(ps)
             if args.demo: 
                 plot_power_spectrum(ps_orig, k_orig, ps_noiseless, k_noiseless, "Original", "Noiseless")
-                plot_power_spectrum(ps_noiseless, k_noiseless, ps, k, "Noiseless", "With noise")
+                plot_power_spectrum(ps_noiseless, k_noiseless, ps, k, "Noiseless", "With noise and fg")
 
             # Data validity - skip invalid records
             if (k_len < 0):

@@ -200,6 +200,42 @@ def save_model(model):
     print(f'Saving model to: {keras_filename}')
     model_json = model.save(keras_filename)
 
+def summarize_test(y_pred, y_test):
+    errors = (y_pred - y_test)**2/y_test**2
+
+    # Calculate R2 scores
+    r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
+    print("R2 Score: " + str(r2))
+    # Calculate rmse scores
+    rms_scores = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)]
+    rms_scores_percent = np.sqrt(rms_scores) * 100 / np.mean(y_test, axis=0)
+    print("RMS Error: " + str(rms_scores_percent))
+    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,0])
+    plt.xlabel('Zeta')
+    plt.ylabel('M_min')
+    plt.title('Zeta Error')
+    plt.colorbar()
+    plt.show()
+    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,1])
+    plt.xlabel('Zeta')
+    plt.ylabel('M_min')
+    plt.title('M_min Error')
+    plt.colorbar()
+    plt.show()
+    plt.scatter(y_test[:, 0], y_pred[:, 0])
+    plt.title('Predictions vs True Values for Zeta')
+    plt.ylabel('Prediction')
+    plt.xlabel('True Value')
+    plt.show()
+    plt.scatter(y_test[:, 1], y_pred[:, 1])
+    plt.title('Predictions vs True Values for M_min')
+    plt.ylabel('Prediction')
+    plt.xlabel('True Value')
+    plt.show()
+    ## Train the model
+    #history = model.fit(X_train, y_train, epochs=512, batch_size=11)
+    ## Plot the training and validation los
+
 def run(X_train, X_test, y_train, y_test):
 
     # Split the data into training and testing sets
@@ -267,18 +303,7 @@ def run(X_train, X_test, y_train, y_test):
     #print(y_test[:,0].shape)
     #print(y_test[:,1].shape)
     #print(errors)
-    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,0])
-    plt.xlabel('Zeta')
-    plt.ylabel('M_min')
-    plt.title('Zeta Error')
-    plt.colorbar()
-    plt.show()
-    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,1])
-    plt.xlabel('Zeta')
-    plt.ylabel('M_min')
-    plt.title('M_min Error')
-    plt.colorbar()
-    plt.show()
+    summarize_test(y_pred, y_test)
     plt.scatter(y_test[:, 0], y_test[:, 1], c=np.mean(X_test, axis=1))
     plt.xlabel('Zeta')
     plt.ylabel('M_min')
@@ -313,41 +338,9 @@ def run(X_train, X_test, y_train, y_test):
     #plt.legend(['Train', 'Validation'], loc='upper right')
     plt.show()
 
-    ## Test the model
-    #y_pred = model.predict(X_test)
-
-    ## Calculate R2 scores
-    #r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
-    #print("R2 Score: " + str(r2))
-
-    ## Calculate rmse scores
-    #rms_scores = np.sqrt([mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)])
-    #rms_scores_percent = rms_scores * 100 / np.mean(y_test, axis=0)
-    #print("RMS Error: " + str(rms_scores_percent))
-
-    # Plot RMS scores
-    #plt.bar(['zeta', 'mmin'], rms_scores_percent)
-    #plt.ylim(0, 10)
-    #plt.title('% RMS Error for Predictions')
-    #plt.ylabel('% RMS Error (RMSE*100/mean)')
-    #for i, v in enumerate(rms_scores_percent):
-    #    plt.text(i, v, "{:.2f}%".format(v), ha='center', va='bottom')
-    #plt.show()
-
-
-    plt.scatter(y_test[:, 0], y_pred[:, 0])
-    plt.title('Predictions vs True Values for Zeta')
-    plt.ylabel('Prediction')
-    plt.xlabel('True Value')
-    plt.show()
-    plt.scatter(y_test[:, 1], y_pred[:, 1])
-    plt.title('Predictions vs True Values for M_min')
-    plt.ylabel('Prediction')
-    plt.xlabel('True Value')
-    plt.show()
-
     save_model(model)
 
+# main code start here
 tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 if not args.runmode == "test_only":
@@ -365,39 +358,4 @@ else: # testonly
     X_test, y_test = load_testdataset(args.inputfile)
     model = load_model(args.modelfile)
     y_pred = model.predict(X_test)
-
-    errors = (y_pred - y_test)**2/y_test**2
-
-    # Calculate R2 scores
-    r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
-    print("R2 Score: " + str(r2))
-    # Calculate rmse scores
-    rms_scores = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)]
-    rms_scores_percent = np.sqrt(rms_scores) * 100 / np.mean(y_test, axis=0)
-    print("RMS Error: " + str(rms_scores_percent))
-    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,0])
-    plt.xlabel('Zeta')
-    plt.ylabel('M_min')
-    plt.title('Zeta Error')
-    plt.colorbar()
-    plt.show()
-    plt.scatter(y_test[:, 0], y_test[:, 1], c=errors[:,1])
-    plt.xlabel('Zeta')
-    plt.ylabel('M_min')
-    plt.title('M_min Error')
-    plt.colorbar()
-    plt.show()
-    plt.scatter(y_test[:, 0], y_pred[:, 0])
-    plt.title('Predictions vs True Values for Zeta')
-    plt.ylabel('Prediction')
-    plt.xlabel('True Value')
-    plt.show()
-    plt.scatter(y_test[:, 1], y_pred[:, 1])
-    plt.title('Predictions vs True Values for M_min')
-    plt.ylabel('Prediction')
-    plt.xlabel('True Value')
-    plt.show()
-    ## Train the model
-    #history = model.fit(X_train, y_train, epochs=512, batch_size=11)
-    ## Plot the training and validation los
-
+    summarize_test(y_pred, y_test)

@@ -20,3 +20,5 @@ ps-c/ps_gk
 21cm_simulation/data/uv_map.npy
 21cm_simulation/data/xfrac3d_7.059.bin
 21cm_simulation/.ipynb_checkpoints/p21cm_powerspectrum-checkpoint.ipynb
+*.pkl
+*/output/*.log
