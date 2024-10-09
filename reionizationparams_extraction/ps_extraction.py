@@ -38,6 +38,7 @@ parser.add_argument('-d', '--hiddenlayerdim', type=int, default=2048, help='Size
 parser.add_argument('-n', '--noninteractive', action='store_true', help='noninteractive mode. do not show plots.')
 parser.add_argument('-p', '--saveprediction', action='store_true', help='whether to save the predicted powerspectrum along with corresponding reionization parameters.')
 parser.add_argument('-f', '--predfilename', type=str, default=datetime.now().strftime("output/ps_extraction-pred-%Y%m%d%H%M%S.pkl"), help='file to save the predicted powerspectrum along with corresponding reionization parameters')
+parser.add_argument('-a', '--predictall', action='store_true', help='whether to predict and save all samples for 21cm powerspectrum (default is to save only the test portion of samples).')
 
 args = parser.parse_args()
 ps_size = -1
@@ -89,8 +90,8 @@ def load_dataset(totalps_filename, cosmops_filename):
     split_index = int(len(X) * 0.8)
     #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
     # Deterministic split because we need the params for the test set
-    X_train, X_test, y_train, y_test, p_test = X[:split_index], X[split_index:], y[:split_index], y[split_index:], p[split_index:]
-    return (X_train, X_test, y_train, y_test, p_test)
+    X_train, X_test, y_train, y_test, p_train, p_test = X[:split_index], X[split_index:], y[:split_index], y[split_index:], p[:split_index], p[split_index:]
+    return (X_train, X_test, y_train, y_test, p_train, p_test, X, y, p)
 
 def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 16, 
                  activation = "tanh", activation2 = "leaky_relu"):
@@ -201,7 +202,7 @@ def save_prediction(y_pred, p_test):
             pickle.dump({"X": y, "y": p}, f)
 
 
-def run(X_train, X_test, y_train, y_test, p_test):
+def run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all):
 
     # Split the data into training and testing sets
     #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -253,8 +254,13 @@ def run(X_train, X_test, y_train, y_test, p_test):
         training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
         #validation_loss.append(history.history['val_loss'][-1])  
         # Test the model
-        y_pred = model.predict(X_test)
-        save_prediction(y_pred, p_test)
+        if args.predictall:
+            y_pred = model.predict(X_all)
+            y_test = y_all # y_test is used for score calculations
+            save_prediction(y_pred, p_all)
+        else:
+            y_pred = model.predict(X_test)
+            save_prediction(y_pred, p_test)
 
         # Calculate R2 scores
         r2 = r2_score(y_test, y_pred)
@@ -353,13 +359,13 @@ def run(X_train, X_test, y_train, y_test, p_test):
 tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test, p_test = load_dataset(args.totalpsfile, args.cosmopsfile)
+X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all = load_dataset(args.totalpsfile, args.cosmopsfile)
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-fg-80-7000.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240925215505.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 start_time = time.time()
-run(X_train, X_test, y_train, y_test, p_test)
+run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all)
 print(f'args={args}')
 print(f'Finished run in {time.time()-start_time} seconds.')
 #grid_search(X, y)

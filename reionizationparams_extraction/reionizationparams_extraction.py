@@ -44,6 +44,7 @@ def load_testdataset(filename):
         while 1:
             try:
                 e = pickle.load(f)
+                print("Fields in e:", list(e.keys()))
                 X.append(e['X'])
                 y.append(e['y'])
                 if lines < args.previewrows: print(f'X={e["X"]}, y={e["y"]}')
@@ -66,19 +67,24 @@ def load_dataset(filename):
         while 1:
             try:
                 e = pickle.load(f)
+                #print("Fields in e:", list(e.keys()))
                 # We scale the M_min to bring it to similar level
                 # as Zeta. This is to avoid the skewing of model to optimizing 
                 # one of the outputs at the expense of the other
                 #params = [float(e['zeta']), float(e['m_min'])*90-320]
-                params = [float(e['zeta']), float(e['m_min'])]
-                #if True:
-                if((not args.excludeouter) or
-                    (params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
-                    y.append(params)
-                    ps = [float(x) for x in e['ps']]
-                    X.append(ps) 
-                    if lines < args.previewrows: print(f'params={params}, ps={ps}')
-                    lines = lines + 1
+                if ('X' in e):
+                    X.append(e['X'])
+                    y.append(e['y'])
+                else:
+                    params = [float(e['zeta']), float(e['m_min'])]
+                    #if True:
+                    if((not args.excludeouter) or
+                        (params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
+                        y.append(params)
+                        ps = [float(x) for x in e['ps']]
+                        X.append(ps) 
+                if lines < args.previewrows: print(f'params={y[-1]}, ps={X[-1]}')
+                lines = lines + 1
             except EOFError:
                 break
     print("--- read %d lines ---" % lines)
