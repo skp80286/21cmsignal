@@ -10,13 +10,13 @@ import time
 import pickle
 from compute_power_spectrum import ComputePowerSpectrum as CPS
 import argparse
+import math
 
 parser = argparse.ArgumentParser(description='Simulate 21cm cosmological signal with noise and foreground.')
 parser.add_argument('-f', '--foreground', action='store_true', help='Add Galactic Synchrotron foreground')
 parser.add_argument('-d', '--demo', action='store_true', help='Run in demo mode, single row with plots and informational screen output')
 parser.add_argument('-n', '--nsets', type=int, default=100000, help='Limit processing to specified number of rows')
-parser.add_argument('-s', '--sliceindex', type=int, default=10, help='Slice index to plot. Used in demo mode.')
-parser.add_argument('-r', '--rowindex', type=int, default=18, help='Row index to plot. Used in demo mode.')
+parser.add_argument('-s', '--sliceindex', type=int, default=40, help='Slice index to plot. Used in demo mode.')
 parser.add_argument('-p', '--datapath', type=str, default='./data/', help='Path to data files')
 parser.add_argument('-z', '--redshift', type=float, default=9.1, help='redshift')
 parser.add_argument('-c', '--cells', type=int, default=80, help='number of cells, each side of cube')
@@ -24,8 +24,21 @@ parser.add_argument('-l', '--length', type=int, default=100, help='length of eac
 
 args = parser.parse_args()
 
+# Following are the range of parameters which are around the default values. 
+# these are useful for demo plots
+zeta_base = 30.0
+zeta_low = zeta_base*0.9  # -10%
+zeta_high = zeta_base*1.1 # +10%
+
+m_min_base = math.log10(49999.9995007974)
+m_min_low = m_min_base+math.log10(0.9) # divide by 0.9
+m_min_high = m_min_base+math.log10(11) # multiply by 1.1
+
+
 if args.demo:
     print("### Demo Mode ###")
+demo_row_index = 0
+
 ##############
 # Utility method for plotting
 ##############
@@ -45,19 +58,29 @@ def plot_power_spectrum(ps1, ks1, ps2, ks2, title1, title2):
     print(ks1)
     print(ks2)
     plt.rcParams['figure.figsize'] = [15, 6]
-    plt.subplot(121)
-    plt.title(title1 + ' Spherically averaged power spectrum.')
-    plt.loglog(ks1, ps1)
-    #plt.xlim(right = 2)
+    plt.title('Spherically averaged power spectrum.')
+    plt.plot(ks1, ps1, label=title1)
+    plt.xlim(left = 0)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
 
-    plt.subplot(122)
-    plt.title(title2 + ' Spherically averaged power spectrum.')
-    plt.loglog(ks2, ps2)
-    #plt.xlim(right = 2)
+    plt.plot(ks2, ps2, label=title2)
+
+    plt.yscale('log')
+    plt.legend()
+    plt.show()
+
+    # Temp
+    plt.rcParams['figure.figsize'] = [15, 6]
+    plt.title('Spherically averaged power spectrum.')
+    plt.plot(ks1, ps1, label=title1)
+    plt.xlim(left = 0)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
+
+    plt.plot(ks2, ps2, label=title2)
+
+    plt.legend()
     plt.show()
 
 
@@ -144,9 +167,15 @@ cps = CPS(user_params['HII_DIM'], user_params['BOX_LEN'])
 
 if args.demo: # skip some lines and load a ps to plot
     with open(ps_filename, 'rb') as input_file:  # open a text file
-        for i in range(args.rowindex):
+        e = None
+        while True: # Find a raw where the parameters are near the default values and not outliers
             e = pickle.load(input_file)
-        e = pickle.load(input_file)
+            zeta = e["zeta"]
+            m_min = e["m_min"]
+            if zeta_low < zeta and zeta < zeta_high and m_min_low < m_min and m_min < m_min_high:
+                print (f'Found demo row at index {demo_row_index} zeta={zeta}, m_min={m_min}')
+                break
+            demo_row_index += 1
         ps_orig = e["ps"]
         k_orig = e["k"]
 
@@ -154,7 +183,7 @@ if args.demo: # skip some lines and load a ps to plot
 with open(bt_filename, 'rb') as input_file:  # open a text file
     while True:
         if args.demo: # skip a few lines
-            for i in range(args.rowindex):
+            for i in range(demo_row_index):
                 e = pickle.load(input_file)
 
         if lines%100 == 1: # Useful logging for monitoring a longrunning computation
@@ -168,6 +197,7 @@ with open(bt_filename, 'rb') as input_file:  # open a text file
             zeta = e["zeta"]
             m_min = e["m_min"]
             if args.demo: 
+                print (f'zeta={zeta}, m_min={m_min}')
                 print(f"dT.shape={dT.shape}, noise_cube.shape={noise_cube.shape}")
                 print("Printing noiseless cube slice:")
                 print(dT[:][args.sliceindex][:])
