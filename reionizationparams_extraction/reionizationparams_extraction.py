@@ -26,13 +26,17 @@ import tensorflow as tf
 from datetime import datetime
 import time
 import argparse
+import glob
 
 parser = argparse.ArgumentParser(description='Build a neural network based ML model to predict reionization parameters from power spectrum of 21 cm brightness temperature.')
-parser.add_argument('-i', '--inputfile', type=str, default='../21cm_simulation/output/ps-80-7000.pkl', help='path to the powerspectrum file')
+parser.add_argument('-i', '--inputfile', type=str, default='../21cm_simulation/saved_output/newsim/ps-*.pkl', help='path pattern for the powerspectrum files')
 parser.add_argument('-x', '--excludeouter', action='store_true', help='exclude outer range of reionization parameters in the dataset to get more accurate results.')
 parser.add_argument('-r', '--previewrows', type=int, default=1, help='Number of rows to print on screen for a preview of input data.')
 parser.add_argument('-d', '--runmode', type=str, default='train_test', help='one of train_test, test_only, grid_search')
 parser.add_argument('-m', '--modelfile', type=str, default='./output/reion-par-extr-model.keras', help='saved NN model to use for testing')
+parser.add_argument('-s', '--numsamplebatches', type=int, default=1, help='Number of batches of sample data to use for plotting learning curve by sample size.')
+parser.add_argument('-e', '--epochs', type=int, default=80, help='Number of epochs in training.')
+parser.add_argument('-b', '--batchsize', type=int, default=6, help='Batch size in training.')
 
 args = parser.parse_args()
 
@@ -59,35 +63,40 @@ def load_testdataset(filename):
     y = y[valid_indices]
     return (X, y)
 
-def load_dataset(filename):
+def load_dataset(file_pattern):
     X = []
     y = []
     lines = 0
-    with open(filename, 'rb') as f:  # open a text file
-        while 1:
-            try:
-                e = pickle.load(f)
-                #print("Fields in e:", list(e.keys()))
-                # We scale the M_min to bring it to similar level
-                # as Zeta. This is to avoid the skewing of model to optimizing 
-                # one of the outputs at the expense of the other
-                #params = [float(e['zeta']), float(e['m_min'])*90-320]
-                if ('X' in e):
-                    X.append(e['X'])
-                    y.append(e['y'])
-                else:
-                    params = [float(e['zeta']), float(e['m_min'])]
-                    #if True:
-                    if((not args.excludeouter) or
-                        (params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
-                        y.append(params)
-                        ps = [float(x) for x in e['ps']]
-                        X.append(ps) 
-                if lines < args.previewrows: print(f'params={y[-1]}, ps={X[-1]}')
-                lines = lines + 1
-            except EOFError:
-                break
-    print("--- read %d lines ---" % lines)
+    
+    for filename in glob.glob(file_pattern):
+        print(f"Reading file: {filename}")
+        with open(filename, 'rb') as f:
+            while True:
+                try:
+                    e = pickle.load(f)
+                    #print("Fields in e:", list(e.keys()))
+                    # We scale the M_min to bring it to similar level
+                    # as Zeta. This is to avoid the skewing of model to optimizing 
+                    # one of the outputs at the expense of the other
+                    #params = [float(e['zeta']), float(e['m_min'])*90-320]
+                    if ('X' in e):
+                        X.append(e['X'])
+                        y.append(e['y'])
+                    else:
+                        params = [float(e['zeta']), float(e['m_min'])]
+                        #if True:
+                        if((not args.excludeouter) or
+                            (params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
+                            y.append(params)
+                            ps = [float(x) for x in e['ps']]
+                            X.append(ps) 
+                    if lines < args.previewrows: print(f'params={y[-1]}, ps={X[-1]}')
+                    lines = lines + 1
+                except EOFError:
+                    break
+    
+    print(f"--- read {lines} lines from {len(glob.glob(file_pattern))} files ---")
+    
     X, y = (np.array(X), np.array(y))
     # Data validation and cleaning
     valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
@@ -138,20 +147,8 @@ def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 
     # First hidden layer 
     model.add(Dense(dim, input_shape=(80,), activation=activation))
 
-    dim = dim//2
+    #dim = dim//2
     # Second hidden layer 
-    model.add(Dense(dim, activation=activation2))
-
-    dim = dim//2
-    # third hidden layer 
-    model.add(Dense(dim, activation=activation2))
-
-    dim = dim//2
-    # fourth hidden layer 
-    model.add(Dense(dim, activation=activation2))
-
-    dim = dim//2
-    # fifth hidden layer 
     model.add(Dense(dim, activation=activation2))
 
     # Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
@@ -259,7 +256,12 @@ def run(X_train, X_test, y_train, y_test):
     the training and test loss curve trend as sample size increases. By default, 
     we will train for only the full length of the available samples.
     """
-    sample_sizes = [len(X_train)]  
+    num_samples = len(X_train)
+    min_sample_size = num_samples//args.numsamplebatches
+    sample_sizes = []
+    for i in range(args.numsamplebatches - 1):
+        sample_sizes.append((i+1)*min_sample_size)
+    sample_sizes.append(num_samples)  
     
     y_pred = None
     history = None
@@ -284,7 +286,7 @@ def run(X_train, X_test, y_train, y_test):
             hidden_layer_dim = hidden_layer_dim, 
             activation = activation, activation2 = activation2
             )
-        history = model.fit(X_train_subset, y_train_subset, epochs=80, batch_size=6, shuffle=True)
+        history = model.fit(X_train_subset, y_train_subset, epochs=args.epochs, batch_size=args.batchsize, shuffle=True)
             
         training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
         #validation_loss.append(history.history['val_loss'][-1])  
