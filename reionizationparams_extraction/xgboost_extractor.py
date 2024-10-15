@@ -1,33 +1,17 @@
 #!python
 
+import xgboost as xgb
+
 import numpy as np
-import pandas as pd
 import pickle
 
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error
 
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.optimizers import SGD
-from keras.optimizers import Adam
-from keras.optimizers import Adagrad
-from keras.optimizers import Adadelta
-from keras.optimizers import RMSprop
-from keras.regularizers import l1_l2, l1
-from keras.losses import huber
-from keras.saving import load_model
-from scikeras.wrappers import KerasRegressor
-from sklearn import preprocessing
-import xgboost as xgb
-
-import tensorflow as tf
-
-from datetime import datetime
-import time
 import argparse
 import glob
+import math
 
 parser = argparse.ArgumentParser(description='Build a neural network based ML model to predict reionization parameters from power spectrum of 21 cm brightness temperature.')
 parser.add_argument('-i', '--inputfile', type=str, default='../21cm_simulation/saved_output/newsim/ps-*.pkl', help='path pattern for the powerspectrum files')
@@ -38,6 +22,7 @@ parser.add_argument('-m', '--modelfile', type=str, default='./output/reion-par-e
 parser.add_argument('-s', '--numsamplebatches', type=int, default=1, help='Number of batches of sample data to use for plotting learning curve by sample size.')
 parser.add_argument('-e', '--epochs', type=int, default=80, help='Number of epochs in training.')
 parser.add_argument('-b', '--batchsize', type=int, default=6, help='Batch size in training.')
+parser.add_argument('-l', '--logpowerspectrum', action='store_true', help='use the logarithm of the powerspectrum')
 
 args = parser.parse_args()
 
@@ -89,7 +74,15 @@ def load_dataset(file_pattern):
                         if((not args.excludeouter) or
                             (params[1] > 4.25 and params[0] > 25 and params[0] < 150)):
                             y.append(params)
-                            ps = [float(x) for x in e['ps']]
+
+                            ps = e['ps']
+                            ks = e['k']
+                            for i, (p, k) in enumerate(zip(ps, ks)):
+                                if (p != 0 and k !=0):
+                                    ps[i] = p/k**3
+                            
+                            if args.logpowerspectrum:
+                                ps = [math.log10(x+1) for x in ps]
                             X.append(ps) 
                             if lines < args.previewrows: print(f'params={y[-1]}, ps={X[-1]}')
                     lines = lines + 1
@@ -107,102 +100,6 @@ def load_dataset(file_pattern):
     # Split the dataset and normalize
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
     return (X_train, X_test, y_train, y_test)
-
-## Not used
-def my_loss_fn(y_true, y_pred):
-    SS_res = tf.square(y_true - y_pred)
-    SS_tot = tf.square(y_true - tf.reduce_mean(y_true))
-    r2_inv = tf.reduce_sum(SS_res / (SS_tot + tf.constant(1e-7, dtype=tf.float32)))
-    return r2_inv
-
-def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 16, 
-                 activation = "tanh", activation2 = "leaky_relu"):
-    """"
-    Create a neural network model with specified paramters.
-
-    This function creates a Sequential model with multiple hidden layers and an output layer.
-    The number of neurons in each hidden layer is halved progressively.
-
-    Parameters:
-    optimizer (str): The optimizer to use for training. Default is 'Adgrad'.
-    learning_rate (float): The learning rate for the optimizer. Default is 0.0001.
-    hidden_layer_dim (int): The number of neurons in the first hidden layer. Default is 16. Subsequent 
-                            layers have a dimension that is half of the previous layer.
-    activation (str): The activation function for the first hidden layer. Default is "tanh".
-    activation2 (str): The activation function for subsequent hidden layers. Default is "leaky_relu".
-
-    Returns:
-    keras.models.Sequential: A compiled Keras Sequential model ready for training.
-
-    The model architecture:
-    - Input layer: 80 neurons (matching the input shape)
-    - 5 hidden layers with progressively halved dimensions
-    - Output layer: 2 neurons (for Zeta and M_min predictions)
-
-    The model uses the Huber loss function and is compiled with the specified optimizer.
-    """
-    # Create a neural network model
-    model = Sequential()
-
-    dim = hidden_layer_dim
-    # First hidden layer 
-    model.add(Dense(dim, input_shape=(80,), activation=activation))
-
-    #dim = dim//2
-    # Second hidden layer 
-    model.add(Dense(dim, activation=activation2))
-
-    # Output layer with 2 neurons (corresponding to Zeta and M_min respectively) 
-    model.add(Dense(2, activation='linear'))
-
-    # setup optimizer
-    opt = None
-    if optimizer=="SGD":
-        opt = SGD(learning_rate=learning_rate)
-    if optimizer=="Adagrad":
-        opt = Adagrad(learning_rate=learning_rate)
-    if optimizer=="Adadelta":
-        opt = Adadelta(learning_rate=learning_rate)
-    if optimizer=="RMSprop":
-        opt = RMSprop(learning_rate=learning_rate)
-    else: #optimizer=="Adam":
-        opt = Adam(learning_rate=learning_rate)
-
-    # Compile the model  
-    model.compile(loss=huber, optimizer=opt, metrics=['accuracy'])
-
-    # Summary of the model
-    model.summary()
-    print("######## completed model setup #########")
-
-    return model
-
-def grid_search(X, y):
-    model = KerasRegressor(model=create_model)
-    param_grid = {
-        "epochs": [64], "batch_size":[8], 
-        "model__hidden_layer_dim": [1024, 2048],
-        "model__activation": ['tanh','sigmoid'],
-        "model__activation2": ['leaky_relu', 'linear'],
-        "loss": ['mean_squared_error'],
-        "optimizer": ['Adam'],
-        "model__learning_rate": [0.0001],
-    }
-    grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3)
-    grid_result = grid.fit(X, y)
-    # summarize results
-    print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-    means = grid_result.cv_results_['mean_test_score']
-    stds = grid_result.cv_results_['std_test_score']
-    params = grid_result.cv_results_['params']
-    for mean, stdev, param in zip(means, stds, params):
-        print("%f (%f) with: %r" % (mean, stdev, param))
-
-def save_model(model):
-    # Save the model architecture and weights
-    keras_filename = datetime.now().strftime("output/reion-par-extr-model-%Y%m%d%H%M%S.keras")
-    print(f'Saving model to: {keras_filename}')
-    model_json = model.save(keras_filename)
 
 def summarize_test(y_pred, y_test):
     errors = (y_pred - y_test)**2/y_test**2
@@ -354,7 +251,7 @@ def run(X_train, X_test, y_train, y_test):
     #save_model(model)
 
 # main code start here
-tf.config.list_physical_devices('GPU')
+#tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 if not args.runmode == "test_only":
     #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")

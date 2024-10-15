@@ -22,3 +22,4 @@ ps-c/ps_gk
 21cm_simulation/.ipynb_checkpoints/p21cm_powerspectrum-checkpoint.ipynb
 *.pkl
 */output/*.log
+/reionizationparams_extraction/__pycache__
