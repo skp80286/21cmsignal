@@ -36,6 +36,7 @@ parser.add_argument('-z', '--redshift', type=float, default=9.1, help='redshift'
 parser.add_argument('-c', '--cells', type=int, default=80, help='number of cells, each side of cube')
 parser.add_argument('-l', '--length', type=int, default=100, help='length of each side of cube in Mpc')
 parser.add_argument('-r', '--randomseed', type=int, default=101, help='random seed for simulations')
+parser.add_argument('-t', '--nthreads', type=int, default=6, help='number of threads for 21cmFAST simulation')
 parser.add_argument('--zetalow', type=int, default=18, help='lower bound of zeta')
 parser.add_argument('--zetahigh', type=int, default=200, help='upper bound of zeta')
 parser.add_argument('--mminlow', type=float, default=3.69897, help='lower bound of m_min')
@@ -94,15 +95,15 @@ cache_tools.clear_cache(direc=cache_dir)
 #               "POWER_SPECTRUM": 5} # POWER_SPECTRUM: CLASS
 #flag_options = { "USE_MINI_HALOS": True, "M_MIN_in_Mass": True, "USE_MASS_DEPENDENT_ZETA": True, 
 #                "INHOMO_RECO": True, "US_TS_FLUCT": True}
-user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": 6, "USE_FFTW_WISDOM": True}
+user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": args.nthreads, "USE_FFTW_WISDOM": True}
 flag_options = { }
 
 # File for storing Brightness Temperature maps
-bt_filename = args.filepath + "/output/bt-" + timestamp + "-" + pid + ".pkl"
+bt_filename = args.filepath + "/output/bt-" + args.randomseed + "-" + timestamp + "-" + pid + ".pkl"
 print(bt_filename)
 
 # File for storing Power Spectra
-ps_filename = args.filepath  + "/output/ps-" + timestamp + "-" + pid + ".pkl"
+ps_filename = args.filepath  + "/output/ps-" + args.randomseed + "-" + timestamp + "-" + pid + ".pkl"
 print(ps_filename)
 
 #zeta_base = 30.0
