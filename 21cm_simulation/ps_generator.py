@@ -35,6 +35,7 @@ parser.add_argument('-s', '--sliceindex', type=int, default=40, help='Slice inde
 parser.add_argument('-z', '--redshift', type=float, default=9.1, help='redshift')
 parser.add_argument('-c', '--cells', type=int, default=80, help='number of cells, each side of cube')
 parser.add_argument('-l', '--length', type=int, default=100, help='length of each side of cube in Mpc')
+parser.add_argument('-r', '--randomseed', type=int, default=101, help='random seed for simulations')
 parser.add_argument('--zetalow', type=int, default=18, help='lower bound of zeta')
 parser.add_argument('--zetahigh', type=int, default=200, help='upper bound of zeta')
 parser.add_argument('--mminlow', type=float, default=3.69897, help='lower bound of m_min')
@@ -137,7 +138,7 @@ for i in range(args.nsets):
     }
     time1 = time.time_ns()
     cache_tools.clear_cache(direc=cache_dir)
-    coeval = p21c.run_coeval(redshift=args.redshift, user_params = user_params, astro_params=astro_params, flag_options=flag_options)
+    coeval = p21c.run_coeval(redshift=args.redshift, user_params = user_params, astro_params=astro_params, flag_options=flag_options, random_seed=args.randomseed)
     time2 = time.time_ns()
     coeval_time += time2 - time1
     #print(f'Brightness temp shape {coeval.brightness_temp.shape}')

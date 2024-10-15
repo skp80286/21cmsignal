@@ -187,7 +187,7 @@ def run(X_train, X_test, y_train, y_test):
         )
 
         history = model.fit(X_train_subset, y_train_subset)
-        print(f"History: {history}")
+        #print(f"History: {history}")
             
         #training_loss.append(history.best_score)  # Store last training loss for each iteration
         #validation_loss.append(history.history['val_loss'][-1])  
