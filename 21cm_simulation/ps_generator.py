@@ -99,11 +99,11 @@ user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_I
 flag_options = { }
 
 # File for storing Brightness Temperature maps
-bt_filename = args.filepath + "/output/bt-" + args.randomseed + "-" + timestamp + "-" + pid + ".pkl"
+bt_filename = args.filepath + "/output/bt-" + str(args.randomseed) + "-" + timestamp + "-" + pid + ".pkl"
 print(bt_filename)
 
 # File for storing Power Spectra
-ps_filename = args.filepath  + "/output/ps-" + args.randomseed + "-" + timestamp + "-" + pid + ".pkl"
+ps_filename = args.filepath  + "/output/ps-" + str(args.randomseed) + "-" + timestamp + "-" + pid + ".pkl"
 print(ps_filename)
 
 #zeta_base = 30.0
