@@ -69,6 +69,7 @@ def plot_multiple_ps(ks, ps, zetas, mmins):
     plt.legend(loc='lower right')
     plt.show()
 
+"""
 # Initialize powerspectrum computation
 cps = CPS(80, 100)
 noise_cube = create_gaussian_noise_cube((80, 80, 80), mean=0, std=1)
@@ -90,4 +91,3 @@ with open(args.psfilename, 'rb') as input_file:  # open a text file
         mminset.append(e["m_min"])
 
 plot_multiple_ps(kset, psset, zetaset, mminset)
-"""

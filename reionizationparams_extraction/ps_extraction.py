@@ -1,5 +1,6 @@
 #!python
 
+import xgboost as xgb
 import numpy as np
 import pandas as pd
 import pickle
@@ -39,6 +40,7 @@ parser.add_argument('-n', '--noninteractive', action='store_true', help='noninte
 parser.add_argument('-p', '--saveprediction', action='store_true', help='whether to save the predicted powerspectrum along with corresponding reionization parameters.')
 parser.add_argument('-f', '--predfilename', type=str, default=datetime.now().strftime("output/ps_extraction-pred-%Y%m%d%H%M%S.pkl"), help='file to save the predicted powerspectrum along with corresponding reionization parameters')
 parser.add_argument('-a', '--predictall', action='store_true', help='whether to predict and save all samples for 21cm powerspectrum (default is to save only the test portion of samples).')
+parser.add_argument('--modeltype', type=str, default='ANN', help='ML model to use: xgb or ANN')
 
 args = parser.parse_args()
 ps_size = -1
@@ -47,6 +49,7 @@ def load_dataset(totalps_filename, cosmops_filename):
     X = []
     y = []
     p = [] # reionization params
+    kset = [] # array of 'k's
     lines = 0
     print(f'Reading files totalps={totalps_filename}, 21cmps={cosmops_filename}')
     with open(totalps_filename, 'rb') as total_f, open(cosmops_filename, 'rb') as cosmo_f:
@@ -59,6 +62,7 @@ def load_dataset(totalps_filename, cosmops_filename):
                 
                 total_ps = [float(x) for x in total_e['ps']]
                 cosmo_ps = [float(x) for x in cosmo_e['ps']]
+                ks = [float(x) for x in cosmo_e['k']]
                 if (len(total_ps) != len(cosmo_ps)): 
                     raise ValueError(f"Length mismatch: total_ps ({len(total_ps)}) != cosmo_ps ({len(cosmo_ps)})")
                 global ps_size
@@ -71,6 +75,7 @@ def load_dataset(totalps_filename, cosmops_filename):
                 y.append(cosmo_ps)
                 X.append(total_ps)
                 p.append(params)
+                kset.append(ks)
                     
                 if lines < args.previewrows:
                     print(f'params={params}, total_ps={total_ps[:5]}..., cosmo_ps={cosmo_ps[:5]}...')
@@ -79,19 +84,20 @@ def load_dataset(totalps_filename, cosmops_filename):
                 break
     
     print(f"--- read {lines} lines ---")
-    X, y, p = (np.array(X), np.array(y), np.array(p))
+    X, y, p, kset = (np.array(X), np.array(y), np.array(p), np.array(kset))
     
     valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
     X = X[valid_indices]
     y = y[valid_indices]
     p = p[valid_indices]
+    kset = kset[valid_indices]
 
     # Split the dataset and normalize
     split_index = int(len(X) * 0.8)
     #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
     # Deterministic split because we need the params for the test set
-    X_train, X_test, y_train, y_test, p_train, p_test = X[:split_index], X[split_index:], y[:split_index], y[split_index:], p[:split_index], p[split_index:]
-    return (X_train, X_test, y_train, y_test, p_train, p_test, X, y, p)
+    X_train, X_test, y_train, y_test, p_train, p_test, k_test = X[:split_index], X[split_index:], y[:split_index], y[split_index:], p[:split_index], p[split_index:], kset[split_index:]
+    return (X_train, X_test, y_train, y_test, p_train, p_test, k_test, X, y, p, kset)
 
 def create_model(optimizer='Adgrad', learning_rate = 0.0001, hidden_layer_dim = 16, 
                  activation = "tanh", activation2 = "leaky_relu"):
@@ -196,13 +202,13 @@ def save_model(model):
     print(f'Saving model to: {keras_filename}')
     model.save(keras_filename)
 
-def save_prediction(y_pred, p_test):
+def save_prediction(y_pred, p_test, kset):
     with open(args.predfilename, 'a+b') as f:  # open a text file
-        for y, p in zip(y_pred, p_test):
-            pickle.dump({"X": y, "y": p}, f)
+        for y, p, k in zip(y_pred, p_test, kset):
+            pickle.dump({"X": y, "y": p, "k": k}, f)
 
 
-def run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all):
+def run(X_train, X_test, y_train, y_test, p_train, p_test, k_test, X_all, y_all, p_all, k_all):
 
     # Split the data into training and testing sets
     #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -244,23 +250,32 @@ def run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all):
         X_train_subset = X_train[:size]
         y_train_subset = y_train[:size]
 
-        model = create_model(
-            optimizer=optimizer, learning_rate = learning_rate, 
-            hidden_layer_dim = hidden_layer_dim, 
-            activation = activation, activation2 = activation2
-            )
-        history = model.fit(X_train_subset, y_train_subset, epochs=args.trainingepochs, batch_size=args.trainingbatchsize, shuffle=True)
-            
-        training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
+        model = None
+        if (args.modeltype == 'xgb'):
+            model = xgb.XGBRegressor(
+                n_estimators=100,
+                learning_rate=0.1,
+                max_depth=5,
+                random_state=42
+            ) 
+            model.fit(X_train_subset, y_train_subset)
+        else: # ANN
+            model = create_model(
+                optimizer=optimizer, learning_rate = learning_rate, 
+                hidden_layer_dim = hidden_layer_dim, 
+                activation = activation, activation2 = activation2
+                )
+            history = model.fit(X_train_subset, y_train_subset, epochs=args.trainingepochs, batch_size=args.trainingbatchsize, shuffle=True)
+            training_loss.append(history.history['loss'][-1])  # Store last training loss for each iteration
         #validation_loss.append(history.history['val_loss'][-1])  
         # Test the model
         if args.predictall:
             y_pred = model.predict(X_all)
             y_test = y_all # y_test is used for score calculations
-            save_prediction(y_pred, p_all)
+            save_prediction(y_pred, p_all, k_all)
         else:
             y_pred = model.predict(X_test)
-            save_prediction(y_pred, p_test)
+            save_prediction(y_pred, p_test, k_test)
 
         # Calculate R2 scores
         r2 = r2_score(y_test, y_pred)
@@ -317,7 +332,7 @@ def run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all):
         plt.show()
 
     ## Plot the training and validation loss
-    if not args.noninteractive:
+    if not args.noninteractive and history != None:
         plt.plot(history.history['loss'])
         ##plt.plot(history.history['val_loss'])
         plt.title('Model loss')
@@ -359,13 +374,13 @@ def run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all):
 tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all = load_dataset(args.totalpsfile, args.cosmopsfile)
+X_train, X_test, y_train, y_test, p_train, p_test, k_test, X_all, y_all, p_all, k_all = load_dataset(args.totalpsfile, args.cosmopsfile)
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-fg-80-7000.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240925215505.pkl")
 #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
 start_time = time.time()
-run(X_train, X_test, y_train, y_test, p_train, p_test, X_all, y_all, p_all)
+run(X_train, X_test, y_train, y_test, p_train, p_test, k_test, X_all, y_all, p_all, k_all)
 print(f'args={args}')
 print(f'Finished run in {time.time()-start_time} seconds.')
 #grid_search(X, y)

@@ -32,7 +32,7 @@ zeta_high = zeta_base*1.1 # +10%
 
 m_min_base = math.log10(49999.9995007974)
 m_min_low = m_min_base+math.log10(0.9) # divide by 0.9
-m_min_high = m_min_base+math.log10(11) # multiply by 1.1
+m_min_high = m_min_base+math.log10(1.1) # multiply by 1.1
 
 
 if args.demo:
@@ -59,29 +59,13 @@ def plot_power_spectrum(ps1, ks1, ps2, ks2, title1, title2):
     print(ks2)
     plt.rcParams['figure.figsize'] = [15, 6]
     plt.title('Spherically averaged power spectrum.')
-    plt.plot(ks1, ps1, label=title1)
-    plt.xlim(left = 0)
+    plt.loglog(ks1[1:40], ps1[1:40], label=title1)
+    plt.loglog(ks2[1:40], ps2[1:40], label=title2)
     plt.xlabel('k (Mpc$^{-1}$)')
     plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
-
-    plt.plot(ks2, ps2, label=title2)
-
-    plt.yscale('log')
     plt.legend()
     plt.show()
 
-    # Temp
-    plt.rcParams['figure.figsize'] = [15, 6]
-    plt.title('Spherically averaged power spectrum.')
-    plt.plot(ks1, ps1, label=title1)
-    plt.xlim(left = 0)
-    plt.xlabel('k (Mpc$^{-1}$)')
-    plt.ylabel('P(k) k$^{3}$/$(2\pi^2)$')
-
-    plt.plot(ks2, ps2, label=title2)
-
-    plt.legend()
-    plt.show()
 
 
 ###

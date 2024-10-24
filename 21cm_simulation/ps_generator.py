@@ -28,7 +28,7 @@ import pickle
 import argparse
 
 parser = argparse.ArgumentParser(description='Simulate 21cm cosmological signal and compute powerspectrum.')
-parser.add_argument('-d', '--demo', action='store_true', help='Run in demo mode, 10 rows with plots and informational screen output')
+parser.add_argument('-d', '--demo', action='store_true', help='Run in demo mode, 20 rows with plots and informational screen output')
 parser.add_argument('-n', '--nsets', type=int, default=10000, help='Limit processing to specified number of rows')
 parser.add_argument('-f', '--filepath', type=str, default=".", help='directory path for data files')
 parser.add_argument('-s', '--sliceindex', type=int, default=40, help='Slice index to plot. Used in demo mode.')
@@ -170,10 +170,10 @@ for i in range(args.nsets):
         elapsed = time.time() - start_time
         remaining = elapsed * (float(args.nsets)/(i+1)) - elapsed
         logtimestamp = datetime.now().strftime("%H:%M:%S")
-        print(f'{logtimestamp}: set#{i+1}, {elapsed}s elapsed, {remaining}s remaining') 
-        print(f'coeval_time={coeval_time/1e6}ms , ps_compute_time={ps_compute_time/1e6}ms, bt_write_time={bt_write_time/1e6}ms') 
+        print(f'{logtimestamp}: set#{i+1}, {elapsed:.0f}s elapsed, {remaining:.0f}s remaining') 
+        print(f'coeval_time={coeval_time/1e6:.0f}ms , ps_compute_time={ps_compute_time/1e6:.0f}ms, bt_write_time={bt_write_time/1e6:.0f}ms') 
 
 if args.demo:
     plot(coeval.brightness_temp)
     plot_power_spectra(psset)
-print("--- %s seconds ---" % (time.time() - start_time))
+print("--- %.0f seconds ---" % (time.time() - start_time))

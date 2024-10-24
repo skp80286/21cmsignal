@@ -12,12 +12,13 @@ from sklearn.metrics import r2_score, mean_squared_error
 import argparse
 import glob
 import math
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='Build a neural network based ML model to predict reionization parameters from power spectrum of 21 cm brightness temperature.')
 parser.add_argument('-i', '--inputfile', type=str, default='../21cm_simulation/saved_output/newsim/ps-*.pkl', help='path pattern for the powerspectrum files')
 parser.add_argument('-x', '--excludeouter', action='store_true', help='exclude outer range of reionization parameters in the dataset to get more accurate results.')
 parser.add_argument('-r', '--previewrows', type=int, default=1, help='Number of rows to print on screen for a preview of input data.')
-parser.add_argument('-d', '--runmode', type=str, default='train_test', help='one of train_test, test_only, grid_search')
+parser.add_argument('-d', '--runmode', type=str, default='train_test', help='one of train_test, test_only, grid_search, plot_only')
 parser.add_argument('-m', '--modelfile', type=str, default='./output/reion-par-extr-model.keras', help='saved NN model to use for testing')
 parser.add_argument('-s', '--numsamplebatches', type=int, default=1, help='Number of batches of sample data to use for plotting learning curve by sample size.')
 parser.add_argument('-e', '--epochs', type=int, default=80, help='Number of epochs in training.')
@@ -52,6 +53,7 @@ def load_testdataset(filename):
 def load_dataset(file_pattern):
     X = []
     y = []
+    kset = []
     lines = 0
     
     for filename in glob.glob(file_pattern):
@@ -68,6 +70,8 @@ def load_dataset(file_pattern):
                     if ('X' in e):
                         X.append(e['X'])
                         y.append(e['y'])
+                        kset.append(e['k'])
+                        if lines < args.previewrows: print(f'params={y[-1]}, k={kset[-1]}, ps={X[-1]}')
                     else:
                         params = [float(e['zeta']), float(e['m_min'])]
                         #if True:
@@ -84,22 +88,22 @@ def load_dataset(file_pattern):
                             if args.logpowerspectrum:
                                 ps = [math.log10(x+1) for x in ps]
                             X.append(ps) 
-                            if lines < args.previewrows: print(f'params={y[-1]}, ps={X[-1]}')
+                            kset.append(ks)
+                            if lines < args.previewrows: print(f'params={y[-1]}, k={kset[-1]}, ps={X[-1]}')
                     lines = lines + 1
                 except EOFError:
                     break
     
     print(f"--- read {lines} lines from {len(glob.glob(file_pattern))} files ---")
     
-    X, y = (np.array(X), np.array(y))
+    X, y, kset = (np.array(X), np.array(y), np.array(kset))
     # Data validation and cleaning
     valid_indices = np.all(~np.isnan(X) & ~np.isinf(X), axis=1) & np.all(~np.isnan(y) & ~np.isinf(y), axis=1)
     X = X[valid_indices]
     y = y[valid_indices]
+    kset = kset[valid_indices]
 
-    # Split the dataset and normalize
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
-    return (X_train, X_test, y_train, y_test)
+    return (X, y, kset)
 
 def summarize_test(y_pred, y_test):
     errors = (y_pred - y_test)**2/y_test**2
@@ -136,6 +140,23 @@ def summarize_test(y_pred, y_test):
     ## Train the model
     #history = model.fit(X_train, y_train, epochs=512, batch_size=11)
     ## Plot the training and validation los
+def plot_power_spectra(X, y):
+    plt.rcParams['figure.figsize'] = [15, 6]
+    plt.title('Spherically averaged power spectra.')
+    for i, (row_x, row_y) in enumerate(zip(X[:10], y[:10])):
+        label = f'Zeta:{row_y[0]:.2f}-M_min:{row_y[1]:.2f}'
+        plt.loglog(row_x[1:40], row_y['ps'][1:40], label=label)
+        plt.annotate(text=label, xy=(row_x['k'][2*i+1], row_y['ps'][2*i+1]))
+    plt.xlabel('k (Mpc$^{-1}$)')
+    plt.ylabel('P(k) k$^3$/$(2\pi^2)$')
+    plt.legend(loc='lower right')
+    plt.show()
+
+def save_model(model):
+    # Save the model architecture and weights
+    model_filename = datetime.now().strftime("output/xgboost-extr-model-%Y%m%d%H%M%S.json")
+    print(f'Saving model to: {model_filename}')
+    model_json = model.save_model(model_filename)
 
 def run(X_train, X_test, y_train, y_test):
 
@@ -187,6 +208,7 @@ def run(X_train, X_test, y_train, y_test):
         )
 
         history = model.fit(X_train_subset, y_train_subset)
+
         #print(f"History: {history}")
             
         #training_loss.append(history.best_score)  # Store last training loss for each iteration
@@ -199,12 +221,12 @@ def run(X_train, X_test, y_train, y_test):
         # Calculate R2 scores
         r2 = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(2)]
         print("R2 Score: " + str(r2))
-        r2_scores.append((r2[0]+r2[1]))
+        r2_scores.append(50*(r2[0]+r2[1]))
         # Calculate rmse scores
         rms_scores = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(2)]
         rms_scores_percent = np.sqrt(rms_scores) * 100 / np.mean(y_test, axis=0)
         print("RMS Error: " + str(rms_scores_percent))
-        test_loss.append(rms_scores[0]+rms_scores[1])
+        test_loss.append(0.5*(rms_scores_percent[0]+rms_scores_percent[1]))
 
     # Plot the results
     #print(errors[:,0].shape)
@@ -232,6 +254,7 @@ def run(X_train, X_test, y_train, y_test):
     plt.plot(sample_sizes, r2_scores, label='R2 Score')
     plt.xlabel('Number of Samples')
     plt.ylabel('Loss')
+    plt.yscale('log')
     plt.title(f'opt={optimizer},lr={learning_rate},hl_dim={hidden_layer_dim},activ={activation},activ2={activation2}')
     plt.legend()
     plt.show()
@@ -248,24 +271,27 @@ def run(X_train, X_test, y_train, y_test):
     #plt.legend(['Train', 'Validation'], loc='upper right')
     plt.show()
     """
-    #save_model(model)
+    save_model(model)
 
 # main code start here
 #tf.config.list_physical_devices('GPU')
 print("### GPU Enabled!!!")
 if not args.runmode == "test_only":
     #X, y = load_dataset("../21cm_simulation/output/ps-consolidated")
-    X_train, X_test, y_train, y_test = load_dataset(args.inputfile)
+    X, y, kset = load_dataset(args.inputfile)
+    # Split the dataset and normalize
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
     #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-fg-80-7000.pkl")
     #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240929160608.pkl")
     #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-noise-20240925215505.pkl")
     #X_train, X_test, y_train, y_test = load_dataset("../21cm_simulation/output/ps-80-7000.pkl")
     if args.runmode == "train_test":
         run(X_train, X_test, y_train, y_test)
-    elif args.runmode == "grid_search":
-        grid_search(X_train, y_train)
+    elif args.runmode == "plot_only":
+        plot_power_spectra(X, y, kset)
 else: # testonly
     X_test, y_test = load_testdataset(args.inputfile)
-    model = load_model(args.modelfile)
+    model = xgb.XGBRegressor()
+    model.load_model(args.modelfile)
     y_pred = model.predict(X_test)
     summarize_test(y_pred, y_test)

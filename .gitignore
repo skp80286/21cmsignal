@@ -23,4 +23,4 @@ ps-c/ps_gk
 *.pkl
 */output/*.log
 /reionizationparams_extraction/__pycache__
-/21cm_simulation/_p21c_cache-20241015121618-84087
+/21cm_simulation/_p21c_cache-*
