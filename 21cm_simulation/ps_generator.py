@@ -39,8 +39,8 @@ parser.add_argument('-r', '--randomseed', type=int, default=101, help='random se
 parser.add_argument('-t', '--nthreads', type=int, default=6, help='number of threads for 21cmFAST simulation')
 parser.add_argument('--zetalow', type=int, default=18, help='lower bound of zeta')
 parser.add_argument('--zetahigh', type=int, default=200, help='upper bound of zeta')
-parser.add_argument('--mminlow', type=float, default=3.69897, help='lower bound of m_min')
-parser.add_argument('--mminhigh', type=float, default=5.69897, help='upper bound of m_min')
+parser.add_argument('--mminlow', type=float, default=4.032303338, help='lower bound of m_min')
+parser.add_argument('--mminhigh', type=float, default=5.365636671, help='upper bound of m_min')
 
 args = parser.parse_args()
 if args.demo:
