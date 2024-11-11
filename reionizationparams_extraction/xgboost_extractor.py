@@ -1,6 +1,7 @@
 #!python
 
 import xgboost as xgb
+from xgboost import plot_tree
 
 import numpy as np
 import pickle
@@ -140,16 +141,17 @@ def summarize_test(y_pred, y_test):
     ## Train the model
     #history = model.fit(X_train, y_train, epochs=512, batch_size=11)
     ## Plot the training and validation los
-def plot_power_spectra(X, y):
+def plot_power_spectra(X, y, kset):
+    print(f'shapes X:{X.shape} y:{y.shape} kset:{kset.shape}')
     plt.rcParams['figure.figsize'] = [15, 6]
     plt.title('Spherically averaged power spectra.')
-    for i, (row_x, row_y) in enumerate(zip(X[:10], y[:10])):
-        label = f'Zeta:{row_y[0]:.2f}-M_min:{row_y[1]:.2f}'
-        plt.loglog(row_x[1:40], row_y['ps'][1:40], label=label)
-        plt.annotate(text=label, xy=(row_x['k'][2*i+1], row_y['ps'][2*i+1]))
+    for i, (row_x, row_y, row_k) in enumerate(zip(X, y, kset)):
+        #label = f'Zeta:{row_y[0]:.2f}-M_min:{row_y[1]:.2f}'
+        plt.loglog(row_k[1:40], row_x[1:40]) #, label=label)
+        #plt.annotate(text=label, xy=(row_x[2*i+1], row_k[2*i+1]))
     plt.xlabel('k (Mpc$^{-1}$)')
-    plt.ylabel('P(k) k$^3$/$(2\pi^2)$')
-    plt.legend(loc='lower right')
+    plt.ylabel('P(k) k$^3$/(2*pi^2)')
+    #plt.legend(loc='lower right')
     plt.show()
 
 def save_model(model):
@@ -255,7 +257,7 @@ def run(X_train, X_test, y_train, y_test):
     plt.xlabel('Number of Samples')
     plt.ylabel('Loss')
     plt.yscale('log')
-    plt.title(f'opt={optimizer},lr={learning_rate},hl_dim={hidden_layer_dim},activ={activation},activ2={activation2}')
+    plt.title(f'XGB Learning Trend')
     plt.legend()
     plt.show()
 
@@ -271,6 +273,9 @@ def run(X_train, X_test, y_train, y_test):
     #plt.legend(['Train', 'Validation'], loc='upper right')
     plt.show()
     """
+    print('Plotting Decision Tree')
+    plot_tree(model)
+    plt.savefig("output/xgboost_tree.png", dpi=600) 
     save_model(model)
 
 # main code start here
