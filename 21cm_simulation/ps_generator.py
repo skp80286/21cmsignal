@@ -32,7 +32,7 @@ parser.add_argument('-d', '--demo', action='store_true', help='Run in demo mode,
 parser.add_argument('-n', '--nsets', type=int, default=10000, help='Limit processing to specified number of rows')
 parser.add_argument('-f', '--filepath', type=str, default=".", help='directory path for data files')
 parser.add_argument('-s', '--sliceindex', type=int, default=40, help='Slice index to plot. Used in demo mode.')
-parser.add_argument('-z', '--redshift', type=float, default=9.1, help='redshift')
+parser.add_argument('-z', '--redshift', type=float, default=9.01, help='redshift')
 parser.add_argument('-c', '--cells', type=int, default=80, help='number of cells, each side of cube')
 parser.add_argument('-l', '--length', type=int, default=100, help='length of each side of cube in Mpc')
 parser.add_argument('-r', '--randomseed', type=int, default=101, help='random seed for simulations')
@@ -95,7 +95,7 @@ cache_tools.clear_cache(direc=cache_dir)
 #               "POWER_SPECTRUM": 5} # POWER_SPECTRUM: CLASS
 #flag_options = { "USE_MINI_HALOS": True, "M_MIN_in_Mass": True, "USE_MASS_DEPENDENT_ZETA": True, 
 #                "INHOMO_RECO": True, "US_TS_FLUCT": True}
-user_params = { "HII_DIM": 80, "BOX_LEN": 100, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": args.nthreads, "USE_FFTW_WISDOM": True}
+user_params = { "HII_DIM": args.cells, "BOX_LEN": args.length, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True, "N_THREADS": args.nthreads, "USE_FFTW_WISDOM": True}
 flag_options = { }
 
 # File for storing Brightness Temperature maps
